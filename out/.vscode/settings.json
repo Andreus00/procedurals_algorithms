@@ -2,5 +2,8 @@
   "C_Cpp.default.configurationProvider": "vector-of-bool.cmake-tools",
   "cmake.buildDirectory": "${workspaceFolder}/build/vscode/${variant:buildType}",
   "cmake.parallelJobs": 8,
-  "editor.formatOnSave": true
+  "editor.formatOnSave": true,
+  "files.associations": {
+    "iostream": "cpp"
+  }
 }
