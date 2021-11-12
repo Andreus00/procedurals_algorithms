@@ -34,6 +34,8 @@
 
 #include <yocto/yocto_sampling.h>
 
+#include <iostream>
+
 #include "ext/perlin-noise/noise1234.h"
 
 // -----------------------------------------------------------------------------
@@ -132,7 +134,14 @@ void sample_shape(vector<vec3f>& positions, vector<vec3f>& normals,
 }
 
 void make_terrain(shape_data& shape, const terrain_params& params) {
-  // YOUR CODE GOES HERE
+  for (int i = 0; i < shape.positions.size(); i++) {
+    auto& pos    = shape.positions[i];
+    auto& norm   = shape.normals[i];
+    auto  transf = norm * ridge(pos * params.scale, params.octaves) *
+                  params.height * (1 - length(pos - params.center) / params.size);
+    // std::cout << pos.x << " " << transf.x << std::endl;
+    pos += norm * transf;
+  }
 }
 
 void make_displacement(shape_data& shape, const displacement_params& params) {
