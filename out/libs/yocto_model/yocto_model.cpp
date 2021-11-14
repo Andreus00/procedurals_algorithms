@@ -135,22 +135,67 @@ void sample_shape(vector<vec3f>& positions, vector<vec3f>& normals,
 
 void make_terrain(shape_data& shape, const terrain_params& params) {
   for (int i = 0; i < shape.positions.size(); i++) {
-    auto& pos    = shape.positions[i];
-    auto& norm   = shape.normals[i];
-    auto  transf = norm * ridge(pos * params.scale, params.octaves) *
-                  params.height * (1 - length(pos - params.center) / params.size);
-    // std::cout << pos.x << " " << transf.x << std::endl;
-    pos += norm * transf;
+    // position
+    auto& pos  = shape.positions[i];
+    auto& norm = shape.normals[i];
+    auto  molt = ridge(pos * params.scale, params.octaves) * params.height *
+                (1 - length(pos - params.center) / params.size);
+    pos += norm * molt;
+
+    // color
+    auto height = molt / params.height;
+    auto color  = params.top;
+    if (height < 0.3)
+      color = params.bottom;
+    else if (height < 0.6)
+      color = params.middle;
+    shape.colors.push_back(color);
   }
+  // normals
+  shape.normals = compute_normals(shape);
 }
 
 void make_displacement(shape_data& shape, const displacement_params& params) {
-  // YOUR CODE GOES HERE
+  for (int i = 0; i < shape.positions.size(); i++) {
+    // position
+    auto& pos  = shape.positions[i];
+    auto& norm = shape.normals[i];
+    auto  molt = turbulence(pos * params.scale, params.octaves) * params.height;
+    pos += norm * molt;
+
+    // color
+    auto height = molt / params.height;
+    auto color  = height * params.top + (1 - height) * params.bottom;
+    shape.colors.push_back(color);
+  }
+  // normals
+  shape.normals = compute_normals(shape);
 }
 
 void make_hair(
     shape_data& hair, const shape_data& shape, const hair_params& params) {
-  // YOUR CODE GOES HERE
+  auto segment_length = params.lenght / params.steps;
+  auto points         = sample_shape(shape, params.num);
+  for (int i = 0; i < params.num; i++) {
+    auto point_list    = new vector<vec3f>();
+    auto colors        = new vector<vec4f>();
+    auto current_point = shape.positions[points[i].element];  // punto iniziale
+    auto norm          = shape.normals[points[i].element];  // normale iniziale
+
+    for (int s = 0; s <= params.steps; s++) {
+      // pusho l'attuale punto
+      point_list->push_back(current_point);
+      auto color_mult = s * segment_length / params.lenght;
+      colors->push_back(
+          (1 - color_mult) * params.bottom + color_mult * params.top);
+      // calcolo i dati per il prssimo punto
+      norm.y -= params.gravity;
+      norm          = normalize(norm);
+      current_point = ray_point(ray3f{current_point, norm}, segment_length);
+    }
+    add_polyline(hair, *point_list, *colors);
+  }
+  hair.normals = compute_normals(hair);
 }
 
 void make_grass(scene_data& scene, const instance_data& object,
