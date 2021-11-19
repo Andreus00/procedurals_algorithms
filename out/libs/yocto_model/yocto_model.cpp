@@ -133,6 +133,99 @@ void sample_shape(vector<vec3f>& positions, vector<vec3f>& normals,
   }
 }
 
+struct density_mapped_shape_data {
+  shape_data    shape;
+  vector<float> density_map;
+};
+
+vector<float> sample_triangles_density_cdf(const vector<vec3i>& triangles,
+    const vector<vec3f>& positions, const vector<float>& density_map) {
+  auto cdf = vector<float>(triangles.size());
+  for (auto i = 0; i < cdf.size(); i++) {
+    auto& t = triangles[i];
+    auto  w = triangle_area(positions[t.x], positions[t.y], positions[t.z]);
+
+    cdf[i] = w * density_map[i] + (i != 0 ? cdf[i - 1] : 0);
+  }
+  auto sum = 0.0f;
+  for (auto& el : cdf) {
+    sum += el;
+    std::cout << el << std::endl;
+  }
+  for (auto i = 0; i < cdf.size(); i++) {
+    cdf[i] /= sum;
+  }
+  return cdf;
+}
+
+void sample_shape_mapped(vector<vec3f>& positions, vector<vec3f>& normals,
+    vector<vec2f>& texcoords, const density_mapped_shape_data& shape, int num) {
+  auto triangles  = shape.shape.triangles;
+  auto qtriangles = quads_to_triangles(shape.shape.quads);
+
+  triangles.insert(triangles.end(), qtriangles.begin(), qtriangles.end());
+
+  auto cdf = sample_triangles_density_cdf(
+      triangles, shape.shape.positions, shape.density_map);
+  auto rng = make_rng((int)(0xC + 0x1 + 0xA + 0));
+  for (auto idx = 0; idx < num; idx++) {
+    auto [elem, uv] = sample_triangles(cdf, rand1f(rng), rand2f(rng));
+    auto q          = triangles[elem];
+    positions.push_back(interpolate_triangle(shape.shape.positions[q.x],
+        shape.shape.positions[q.y], shape.shape.positions[q.z], uv));
+    normals.push_back(normalize(interpolate_triangle(shape.shape.normals[q.x],
+        shape.shape.normals[q.y], shape.shape.normals[q.z], uv)));
+    if (!texcoords.empty()) {
+      texcoords.push_back(interpolate_triangle(shape.shape.texcoords[q.x],
+          shape.shape.texcoords[q.y], shape.shape.texcoords[q.z], uv));
+    } else {
+      texcoords.push_back(uv);
+    }
+  }
+}
+
+void make_dense_hair(
+    shape_data& hair, const shape_data& shape, const hair_params& params) {
+  auto          segment_length = params.lenght / params.steps;
+  vector<vec3f> positions;
+  vector<vec3f> normals;
+  vector<vec2f> texcoords;
+  vector<float> density_map;
+  float         sum = 0;
+  for (int i = 0; i < shape.positions.size(); i++) {
+    density_map.push_back(abs(shape.positions[i].y));
+    sum += abs(shape.positions[i].y);
+  }
+  for (int i = 0; i < shape.positions.size(); i++) {
+    density_map[i] /= sum;
+  }
+  sample_shape_mapped(
+      positions, normals, texcoords, {shape, density_map}, params.num);
+  for (int i = 0; i < params.num; i++) {
+    vector<vec3f> point_list;
+    vector<vec4f> colors;
+    vec3f         old_point;  // punto iniziale
+    vec3f         next_point = positions[i];
+    auto          norm       = normals[i];  // normale iniziale
+
+    for (int s = 0; s <= params.steps; s++) {
+      // pusho l'attuale punto
+      old_point = next_point;
+      point_list.push_back(next_point);
+      auto color_mult = s * segment_length / params.lenght;
+      colors.push_back(
+          (1 - color_mult) * params.bottom + color_mult * params.top);
+      // calcolo i dati per il prssimo punto
+      next_point = ray_point(ray3f{old_point, norm}, segment_length);
+      next_point += noise3(old_point * params.scale) * params.strength;
+      next_point.y -= params.gravity;
+      norm = normalize(next_point - old_point);
+    }
+    add_polyline(hair, point_list, colors);
+  }
+  hair.normals = compute_normals(hair);
+}
+
 void make_terrain(shape_data& shape, const terrain_params& params) {
   for (int i = 0; i < shape.positions.size(); i++) {
     // position
@@ -174,33 +267,68 @@ void make_displacement(shape_data& shape, const displacement_params& params) {
 
 void make_hair(
     shape_data& hair, const shape_data& shape, const hair_params& params) {
-  auto segment_length = params.lenght / params.steps;
-  auto points         = sample_shape(shape, params.num);
+  make_dense_hair(hair, shape, params);
+  return;
+  auto          segment_length = params.lenght / params.steps;
+  vector<vec3f> positions;
+  vector<vec3f> normals;
+  vector<vec2f> texcoords;
+  sample_shape(positions, normals, texcoords, shape, params.num);
   for (int i = 0; i < params.num; i++) {
-    auto point_list    = new vector<vec3f>();
-    auto colors        = new vector<vec4f>();
-    auto current_point = shape.positions[points[i].element];  // punto iniziale
-    auto norm          = shape.normals[points[i].element];  // normale iniziale
+    vector<vec3f> point_list;
+    vector<vec4f> colors;
+    vec3f         old_point;  // punto iniziale
+    vec3f         next_point = positions[i];
+    auto          norm       = normals[i];  // normale iniziale
 
     for (int s = 0; s <= params.steps; s++) {
       // pusho l'attuale punto
-      point_list->push_back(current_point);
+      old_point = next_point;
+      point_list.push_back(next_point);
       auto color_mult = s * segment_length / params.lenght;
-      colors->push_back(
+      colors.push_back(
           (1 - color_mult) * params.bottom + color_mult * params.top);
       // calcolo i dati per il prssimo punto
-      norm.y -= params.gravity;
-      norm          = normalize(norm);
-      current_point = ray_point(ray3f{current_point, norm}, segment_length);
+      next_point = ray_point(ray3f{old_point, norm}, segment_length);
+      next_point += noise3(old_point * params.scale) * params.strength;
+      next_point.y -= params.gravity;
+      norm = normalize(next_point - old_point);
     }
-    add_polyline(hair, *point_list, *colors);
+    add_polyline(hair, point_list, colors);
   }
   hair.normals = compute_normals(hair);
 }
 
 void make_grass(scene_data& scene, const instance_data& object,
     const vector<instance_data>& grasses, const grass_params& params) {
-  // YOUR CODE GOES HERE
+  vector<vec3f> positions;
+  vector<vec3f> normals;
+  vector<vec2f> texcoords;
+  auto          rng = rng_state(69420, 666);
+  sample_shape(
+      positions, normals, texcoords, scene.shapes[object.shape], params.num);
+  for (int i = 0; i < params.num; i++) {
+    int           index     = (int)(rand1i(rng, grasses.size()));
+    instance_data new_grass = grasses[index];
+    new_grass.frame.y       = normals[i];
+    new_grass.frame.x       = normalize(
+              vec3f{1, 0, 0} -
+              dot(vec3f{1, 0, 0}, new_grass.frame.y) * new_grass.frame.y);
+    new_grass.frame.z = cross(new_grass.frame.x, new_grass.frame.y);
+    new_grass.frame.o = positions[i];
+
+    float scale_factor = 0.9f + rand1f(rng) * 0.1;
+    new_grass.frame *= scaling_frame(
+        vec3f{scale_factor, scale_factor, scale_factor});
+
+    float rotate_y = rand1f(rng) * 2 * pif;
+    new_grass.frame *= rotation_frame(new_grass.frame.y, rotate_y);
+
+    float rotate_z = 0.1f + rand1f(rng) * 0.1f;
+    new_grass.frame *= rotation_frame(new_grass.frame.z, rotate_z);
+
+    scene.instances.push_back(new_grass);
+  }
 }
 
 }  // namespace yocto
