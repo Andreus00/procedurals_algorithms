@@ -145,15 +145,13 @@ vector<float> sample_triangles_density_cdf(const vector<vec3i>& triangles,
     auto& t = triangles[i];
     auto  w = triangle_area(positions[t.x], positions[t.y], positions[t.z]);
 
-    cdf[i] = w * density_map[i] + (i != 0 ? cdf[i - 1] : 0);
+    cdf[i] = w * (abs(density_map[t.x] + density_map[t.z] + density_map[t.y])) +
+             (i != 0 ? cdf[i - 1] : 0);
   }
   auto sum = 0.0f;
   for (auto& el : cdf) {
     sum += el;
     std::cout << el << std::endl;
-  }
-  for (auto i = 0; i < cdf.size(); i++) {
-    cdf[i] /= sum;
   }
   return cdf;
 }
@@ -184,20 +182,19 @@ void sample_shape_mapped(vector<vec3f>& positions, vector<vec3f>& normals,
   }
 }
 
-void make_dense_hair(
-    shape_data& hair, const shape_data& shape, const hair_params& params) {
+void make_dense_hair(scene_data& scene, shape_data& hair,
+    const instance_data& object, const hair_params& params) {
+  auto          material       = scene.materials[object.material];
+  auto          shape          = scene.shapes[object.shape];
   auto          segment_length = params.lenght / params.steps;
   vector<vec3f> positions;
   vector<vec3f> normals;
   vector<vec2f> texcoords;
   vector<float> density_map;
-  float         sum = 0;
   for (int i = 0; i < shape.positions.size(); i++) {
-    density_map.push_back(abs(shape.positions[i].y));
-    sum += abs(shape.positions[i].y);
-  }
-  for (int i = 0; i < shape.positions.size(); i++) {
-    density_map[i] /= sum;
+    auto texture_value = eval_texture(scene, material.color_tex, texcoords[i]);
+    density_map.push_back(
+        (texture_value.x + texture_value.y + texture_value.z) / 3);
   }
   sample_shape_mapped(
       positions, normals, texcoords, {shape, density_map}, params.num);
@@ -267,8 +264,6 @@ void make_displacement(shape_data& shape, const displacement_params& params) {
 
 void make_hair(
     shape_data& hair, const shape_data& shape, const hair_params& params) {
-  make_dense_hair(hair, shape, params);
-  return;
   auto          segment_length = params.lenght / params.steps;
   vector<vec3f> positions;
   vector<vec3f> normals;
@@ -301,6 +296,10 @@ void make_hair(
 
 void make_grass(scene_data& scene, const instance_data& object,
     const vector<instance_data>& grasses, const grass_params& params) {
+  instance_data hair;
+  hair_params   p;
+  make_dense_hair(scene, scene.shapes[hair.shape], object, p);
+  return;
   vector<vec3f> positions;
   vector<vec3f> normals;
   vector<vec2f> texcoords;
