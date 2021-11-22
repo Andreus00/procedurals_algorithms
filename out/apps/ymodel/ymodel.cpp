@@ -55,6 +55,7 @@ void run(const vector<string>& args) {
   auto gparams      = grass_params{};
   auto output       = "out.json"s;
   auto filename     = "scene.json"s;
+  auto dense_hair   = false;
 
   // parse command line
   auto error = string{};
@@ -72,6 +73,7 @@ void run(const vector<string>& args) {
   add_option(cli, "hairstep", hparams.steps, "hair steps");
   add_option(cli, "output", output, "output scene");
   add_option(cli, "scene", filename, "input scene");
+  add_option(cli, "dense_hair", dense_hair, "dense_hair choice");
   if (!parse_cli(cli, args, error)) print_fatal(error);
 
   // load scene
@@ -86,7 +88,7 @@ void run(const vector<string>& args) {
     make_displacement(
         scene.shapes[get_instance(scene, displacement).shape], dparams);
   }
-  if (hair != "") {
+  if (hair != "" && !dense_hair) {
     scene.shapes[get_instance(scene, hair).shape]      = {};
     scene.shape_names[get_instance(scene, hair).shape] = "hair";
     make_hair(scene.shapes[get_instance(scene, hair).shape],
@@ -99,6 +101,12 @@ void run(const vector<string>& args) {
         grasses.push_back(scene.instances[idx]);
     }
     make_grass(scene, get_instance(scene, grassbase), grasses, gparams);
+  }
+  if (hair != "" && dense_hair) {
+    scene.shapes[get_instance(scene, hair).shape]      = {};
+    scene.shape_names[get_instance(scene, hair).shape] = "hair";
+    make_dense_hair(scene, scene.shapes[get_instance(scene, hair).shape],
+        get_instance(scene, hairbase), hparams);
   }
 
   // make a directory if needed

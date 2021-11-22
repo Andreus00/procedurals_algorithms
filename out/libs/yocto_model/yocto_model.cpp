@@ -64,6 +64,46 @@ vec3f noise3(const vec3f& p) {
   return {noise(p + vec3f{0, 0, 0}), noise(p + vec3f{3, 7, 11}),
       noise(p + vec3f{13, 17, 19})};
 }
+
+///////////////////////////// voronoise
+
+vec3f sin(vec3f x) { return vec3f{sinf(x.x), sinf(x.y), sinf(x.z)}; }
+// float floor(float x) { return (int)x; }
+vec3f floor3(vec3f x) {
+  return vec3f{(float)floor(x.x), (float)floor(x.y), (float)floor(x.z)};
+}
+vec3f fract3(vec3f x) { return x - floor3(x); }
+
+vec3f hash3(vec3f p) {
+  vec3f q = vec3f{dot(p, vec3f{127.1, 311.7, 411.3}),
+      dot(p, vec3f{269.5, 183.3, 152.4}), dot(p, vec3f{419.2, 371.9, 441.0})};
+  return fract3(sin(q) * 43758.5453);
+}
+
+float voronoise(vec3f x, float u, float v) {
+  vec3f floor_point = vec3f{floor(x.x), floor(x.y), floor(x.z)};
+  vec3f fract_point = fract3(x);
+
+  float sh = 1.0f + 63.0f * pow(1.0f - v, 4.0f);
+  float va = 0.0f;
+  float wt = 0.0f;
+  for (int j = -2; j <= 2; j++)
+    for (int i = -2; i <= 2; i++) {
+      for (int k = -2; k <= 2; k++) {
+        vec3f position = vec3f{float(k), float(i), float(j)};
+        vec3f hashed   = hash3(floor_point + position) * vec3f{u, u, 1.0};
+        vec3f r        = position - fract_point + hashed;
+        float d        = length(r);
+        float w        = pow(1.0f - smoothstep(0.0f, 1.414f, d), (float)sh);
+        va += w * hashed.z;
+        wt += w;
+      }
+    }
+
+  return va / wt;
+}
+///////////////////////////// end of voronise
+
 float fbm(const vec3f& p, int octaves) {
   auto sum    = 0.0f;
   auto weight = 1.0f;
@@ -133,6 +173,7 @@ void sample_shape(vector<vec3f>& positions, vector<vec3f>& normals,
   }
 }
 
+///////////////////////////// density for hair
 struct density_mapped_shape_data {
   shape_data    shape;
   vector<float> density_map;
@@ -145,7 +186,8 @@ vector<float> sample_triangles_density_cdf(const vector<vec3i>& triangles,
     auto& t = triangles[i];
     auto  w = triangle_area(positions[t.x], positions[t.y], positions[t.z]);
 
-    cdf[i] = w * (abs(density_map[t.x] + density_map[t.z] + density_map[t.y])) +
+    cdf[i] = w * (abs((density_map[t.x] + density_map[t.z] + density_map[t.y]) /
+                      3)) +
              (i != 0 ? cdf[i - 1] : 0);
   }
   auto sum = 0.0f;
@@ -191,10 +233,12 @@ void make_dense_hair(scene_data& scene, shape_data& hair,
   vector<vec3f> normals;
   vector<vec2f> texcoords;
   vector<float> density_map;
+  std::cout << shape.positions.size() << std::endl;
   for (int i = 0; i < shape.positions.size(); i++) {
-    auto texture_value = eval_texture(scene, material.color_tex, texcoords[i]);
-    density_map.push_back(
-        (texture_value.x + texture_value.y + texture_value.z) / 3);
+    auto texture_value = eval_texture(
+        scene, material.color_tex, shape.texcoords[i]);
+    auto value = (texture_value.x + texture_value.y + texture_value.z) / 3;
+    density_map.push_back(value);
   }
   sample_shape_mapped(
       positions, normals, texcoords, {shape, density_map}, params.num);
@@ -223,7 +267,34 @@ void make_dense_hair(scene_data& scene, shape_data& hair,
   hair.normals = compute_normals(hair);
 }
 
+///////////////////////////// end density for hair
+
+void make_voro_terrain(shape_data& shape, const terrain_params& params) {
+  float u = 1;
+  float v = 0.5;
+  for (int i = 0; i < shape.positions.size(); i++) {
+    // position
+    auto& pos  = shape.positions[i];
+    auto& norm = shape.normals[i];
+    auto  molt = voronoise(pos * params.scale, u, v) * params.height;
+    pos += norm * molt;
+
+    // color
+    auto height = molt / params.height;
+    auto color  = params.top;
+    if (height < 0.3)
+      color = params.bottom;
+    else if (height < 0.6)
+      color = params.middle;
+    shape.colors.push_back(color);
+  }
+  // normals
+  shape.normals = compute_normals(shape);
+}
+
 void make_terrain(shape_data& shape, const terrain_params& params) {
+  make_voro_terrain(shape, params);
+  return;
   for (int i = 0; i < shape.positions.size(); i++) {
     // position
     auto& pos  = shape.positions[i];
@@ -245,7 +316,52 @@ void make_terrain(shape_data& shape, const terrain_params& params) {
   shape.normals = compute_normals(shape);
 }
 
+void make_voro_displacement(
+    shape_data& shape, const displacement_params& params) {
+  float u = 1;
+  float v = 1;
+  for (int i = 0; i < shape.positions.size(); i++) {
+    // position
+    auto& pos  = shape.positions[i];
+    auto& norm = shape.normals[i];
+    auto  molt = voronoise(pos * params.scale, u, v) * params.height;
+    pos += norm * molt;
+
+    // color
+    auto height = molt / params.height;
+    auto color  = height * params.top + (1 - height) * params.bottom;
+    shape.colors.push_back(color);
+  }
+  // normals
+  shape.normals = compute_normals(shape);
+}
+
+// I know, it's a ctrl+c ctrl+v, but i wanted to experiment how different noises
+// interact and the result is pretty good, so i decided to keep it.
+void make_world(shape_data& shape, const displacement_params& params) {
+  float u = 1;
+  float v = 1;
+  for (int i = 0; i < shape.positions.size(); i++) {
+    // position
+    auto& pos  = shape.positions[i];
+    auto& norm = shape.normals[i];
+    auto  molt = (voronoise(pos * params.scale, u, v) +
+                    fbm(pos * params.scale, 8) + ridge(pos * params.scale, 8)) *
+                params.height;
+    pos += norm * molt;
+
+    // color
+    auto height = molt / params.height;
+    auto color  = height * params.top + (1 - height) * params.bottom;
+    shape.colors.push_back(color);
+  }
+  // normals
+  shape.normals = compute_normals(shape);
+}
+
 void make_displacement(shape_data& shape, const displacement_params& params) {
+  make_voro_displacement(shape, params);
+  return;
   for (int i = 0; i < shape.positions.size(); i++) {
     // position
     auto& pos  = shape.positions[i];
@@ -296,10 +412,6 @@ void make_hair(
 
 void make_grass(scene_data& scene, const instance_data& object,
     const vector<instance_data>& grasses, const grass_params& params) {
-  instance_data hair;
-  hair_params   p;
-  make_dense_hair(scene, scene.shapes[hair.shape], object, p);
-  return;
   vector<vec3f> positions;
   vector<vec3f> normals;
   vector<vec2f> texcoords;

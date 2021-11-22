@@ -96,6 +96,9 @@ struct hair_params {
 void make_hair(
     shape_data& hair, const shape_data& shape, const hair_params& params);
 
+void make_dense_hair(scene_data& scene, shape_data& hair,
+    const instance_data& object, const hair_params& params);
+
 struct grass_params {
   int num = 10000;
 };
