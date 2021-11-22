@@ -67,35 +67,47 @@ vec3f noise3(const vec3f& p) {
 
 ///////////////////////////// voronoise
 
-vec3f sin(vec3f x) { return vec3f{sinf(x.x), sinf(x.y), sinf(x.z)}; }
+vec4f sin(vec4f x) { return vec4f{sinf(x.x), sinf(x.y), sinf(x.z), sinf(x.w)}; }
 // float floor(float x) { return (int)x; }
-vec3f floor3(vec3f x) {
-  return vec3f{(float)floor(x.x), (float)floor(x.y), (float)floor(x.z)};
+vec4f floor4(vec4f x) {
+  return vec4f{(float)floor((double)x.x), (float)floor((double)x.y),
+      (float)floor((double)x.z), (float)floor((double)x.w)};
 }
+vec3f floor3(vec3f x) {
+  return vec3f{(float)floor((double)x.x), (float)floor((double)x.y),
+      (float)floor((double)x.z)};
+}
+vec4f fract4(vec4f x) { return x - floor4(x); }
 vec3f fract3(vec3f x) { return x - floor3(x); }
 
-vec3f hash3(vec3f p) {
-  vec3f q = vec3f{dot(p, vec3f{127.1, 311.7, 411.3}),
-      dot(p, vec3f{269.5, 183.3, 152.4}), dot(p, vec3f{419.2, 371.9, 441.0})};
-  return fract3(sin(q) * 43758.5453);
+vec4f hash4(vec3f p) {
+  vec4f q = vec4f{dot(p, vec3f{127.1, 311.7, 411.3}),
+      dot(p, vec3f{269.5, 183.3, 152.4}), dot(p, vec3f{419.2, 371.9, 441.0}),
+      dot(p, vec3f{512.4, 321.9, 69.420})};
+  return fract4(sin(q) * 43758.5453);
 }
 
 float voronoise(vec3f x, float u, float v) {
   vec3f floor_point = vec3f{floor(x.x), floor(x.y), floor(x.z)};
   vec3f fract_point = fract3(x);
 
-  float sh = 1.0f + 63.0f * pow(1.0f - v, 4.0f);
+  double smoothness =
+      1.0f +
+      31.0f * pow(1.0f - v, 4.0f);  // Note: I use 31 instead of 63 (used in the
+                                    // original paper) because the pow() behind
+                                    // overflows with high numbers
   float va = 0.0f;
   float wt = 0.0f;
   for (int j = -2; j <= 2; j++)
     for (int i = -2; i <= 2; i++) {
       for (int k = -2; k <= 2; k++) {
         vec3f position = vec3f{float(k), float(i), float(j)};
-        vec3f hashed   = hash3(floor_point + position) * vec3f{u, u, 1.0};
-        vec3f r        = position - fract_point + hashed;
-        float d        = length(r);
-        float w        = pow(1.0f - smoothstep(0.0f, 1.414f, d), (float)sh);
-        va += w * hashed.z;
+        vec4f hashed   = hash4(floor_point + position) * vec4f{u, u, u, 1.0f};
+        vec3f r = position - fract_point + vec3f{hashed.x, hashed.y, hashed.z};
+        float d = length(r);
+        long double w = pow(
+            1.0 - smoothstep(0.0, 1.414, (double)d), smoothness);
+        va += w * hashed.w;
         wt += w;
       }
     }
@@ -103,6 +115,28 @@ float voronoise(vec3f x, float u, float v) {
   return va / wt;
 }
 ///////////////////////////// end of voronise
+
+//////////////////////////// smoothVoronoi
+
+float smoothVoronoi(vec3f x) {
+  vec3f p = floor3(x);
+  vec3f f = fract3(x);
+
+  float res = 0.0;
+  for (int k = -1; k <= 1; k++) {
+    for (int j = -1; j <= 1; j++)
+      for (int i = -1; i <= 1; i++) {
+        vec3f b    = vec3f{i, j, k};
+        auto  hash = hash4(p + b);
+        vec3f r    = vec3f(b) - f + vec3f{hash.x, hash.y, hash.z};
+        float d    = dot(r, r);
+
+        res += 1.0f / pow(d, 8.0f);
+      }
+  }
+  return pow(1.0f / res, 1.0f / 16.0f);
+}
+//////////////////////////// smoothVoronoi
 
 float fbm(const vec3f& p, int octaves) {
   auto sum    = 0.0f;
@@ -271,7 +305,7 @@ void make_dense_hair(scene_data& scene, shape_data& hair,
 
 void make_voro_terrain(shape_data& shape, const terrain_params& params) {
   float u = 1;
-  float v = 0.5;
+  float v = 1;
   for (int i = 0; i < shape.positions.size(); i++) {
     // position
     auto& pos  = shape.positions[i];
@@ -293,8 +327,6 @@ void make_voro_terrain(shape_data& shape, const terrain_params& params) {
 }
 
 void make_terrain(shape_data& shape, const terrain_params& params) {
-  make_voro_terrain(shape, params);
-  return;
   for (int i = 0; i < shape.positions.size(); i++) {
     // position
     auto& pos  = shape.positions[i];
@@ -335,6 +367,25 @@ void make_voro_displacement(
   // normals
   shape.normals = compute_normals(shape);
 }
+void make_smooth_voro_displacement(
+    shape_data& shape, const displacement_params& params) {
+  float u = 1;
+  float v = 1;
+  for (int i = 0; i < shape.positions.size(); i++) {
+    // position
+    auto& pos  = shape.positions[i];
+    auto& norm = shape.normals[i];
+    auto  molt = smoothVoronoi(pos * params.scale) * params.height;
+    pos += norm * molt;
+
+    // color
+    auto height = molt / params.height;
+    auto color  = height * params.top + (1 - height) * params.bottom;
+    shape.colors.push_back(color);
+  }
+  // normals
+  shape.normals = compute_normals(shape);
+}
 
 // I know, it's a ctrl+c ctrl+v, but i wanted to experiment how different noises
 // interact and the result is pretty good, so i decided to keep it.
@@ -360,7 +411,7 @@ void make_world(shape_data& shape, const displacement_params& params) {
 }
 
 void make_displacement(shape_data& shape, const displacement_params& params) {
-  make_voro_displacement(shape, params);
+  make_smooth_voro_displacement(shape, params);
   return;
   for (int i = 0; i < shape.positions.size(); i++) {
     // position
