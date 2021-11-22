@@ -8,7 +8,7 @@
 # ./bin/ymodel --scene tests/04_grass/grass.json --output outs/04_grass/grass.json --grassbase object --grass grass
 
 # ./bin/yscene render outs/01_terrain/terrain.json --output out/01_terrain.jpg --samples 25 --resolution 720
-./bin/yscene render outs/02_displacement/displacement.json --output out/02_smooth_voro_displacement.jpg --samples 25 --resolution 720
+./bin/yscene render outs/02_displacement/displacement.json --output out/02_cell_voro_displacement.jpg --samples 25 --resolution 720
 # ./bin/yscene render outs/03_hair1/hair1.json --output out/03_hair1.jpg --samples 5 --resolution 720
 # ./bin/yscene render outs/03_hair1/hair1_dense.json --output out/03_hair1_density.jpg --samples 5 --resolution 720
 # ./bin/yscene render outs/03_hair2/hair2.json --output out/03_hair2.jpg --samples 60 --resolution 720

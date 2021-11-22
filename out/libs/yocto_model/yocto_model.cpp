@@ -116,6 +116,55 @@ float voronoise(vec3f x, float u, float v) {
 }
 ///////////////////////////// end of voronise
 
+///////////////////////////// cell noise
+float voronoiDistance(vec3f x) {
+  vec3f p = floor3(x);
+  vec3f f = fract3(x);
+
+  vec3f mb;
+  vec3f mr;
+
+  float res = 8.0;
+  for (int k = -1; k <= 1; k++) {
+    for (int j = -1; j <= 1; j++)
+      for (int i = -1; i <= 1; i++) {
+        vec3f b    = vec3f{i, j, k};
+        vec4f hash = hash4(p + b);
+        vec3f r    = vec3f(b) + vec3f{hash.x, hash.y, hash.z} - f;
+        float d    = dot(r, r);
+
+        if (d < res) {
+          res = d;
+          mr  = r;
+          mb  = b;
+        }
+      }
+  }
+
+  res = 8.0;
+  for (int k = -2; k <= 2; k++) {
+    for (int j = -2; j <= 2; j++) {
+      for (int i = -2; i <= 2; i++) {
+        vec3f b = mb + vec3f{i, j, k};
+        vec3f r = vec3f(b) - f;
+        float d = dot(0.5f * (mr + r), normalize(r - mr));
+
+        res = min(res, d);
+      }
+    }
+  }
+
+  return res;
+}
+
+float getBorder(vec3f p) {
+  float d = voronoiDistance(p);
+
+  if (d > 0.05) return d;
+
+  return 0.05f;
+}
+
 //////////////////////////// smoothVoronoi
 
 float smoothVoronoi(vec3f x) {
@@ -130,7 +179,6 @@ float smoothVoronoi(vec3f x) {
         auto  hash = hash4(p + b);
         vec3f r    = vec3f(b) - f + vec3f{hash.x, hash.y, hash.z};
         float d    = dot(r, r);
-
         res += 1.0f / pow(d, 8.0f);
       }
   }
@@ -367,6 +415,7 @@ void make_voro_displacement(
   // normals
   shape.normals = compute_normals(shape);
 }
+
 void make_smooth_voro_displacement(
     shape_data& shape, const displacement_params& params) {
   float u = 1;
@@ -387,8 +436,26 @@ void make_smooth_voro_displacement(
   shape.normals = compute_normals(shape);
 }
 
-// I know, it's a ctrl+c ctrl+v, but i wanted to experiment how different noises
-// interact and the result is pretty good, so i decided to keep it.
+void make_cell_voro_displacement(
+    shape_data& shape, const displacement_params& params) {
+  for (int i = 0; i < shape.positions.size(); i++) {
+    // position
+    auto& pos  = shape.positions[i];
+    auto& norm = shape.normals[i];
+    auto  molt = voronoiDistance(pos * params.scale) * params.height;
+    pos += norm * molt;
+
+    // color
+    auto height = molt / params.height;
+    auto color  = height * params.top + (1 - height) * params.bottom;
+    shape.colors.push_back(color);
+  }
+  // normals
+  shape.normals = compute_normals(shape);
+}
+
+// I know, it's a ctrl+c ctrl+v, but i wanted to experiment how different
+// noises interact and the result is pretty good, so i decided to keep it.
 void make_world(shape_data& shape, const displacement_params& params) {
   float u = 1;
   float v = 1;
@@ -411,7 +478,7 @@ void make_world(shape_data& shape, const displacement_params& params) {
 }
 
 void make_displacement(shape_data& shape, const displacement_params& params) {
-  make_smooth_voro_displacement(shape, params);
+  make_cell_voro_displacement(shape, params);
   return;
   for (int i = 0; i < shape.positions.size(); i++) {
     // position
