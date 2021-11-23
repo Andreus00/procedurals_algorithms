@@ -70,13 +70,9 @@ vec3f noise3(const vec3f& p) {
 vec4f sin(vec4f x) { return vec4f{sinf(x.x), sinf(x.y), sinf(x.z), sinf(x.w)}; }
 // float floor(float x) { return (int)x; }
 vec4f floor4(vec4f x) {
-  return vec4f{(float)floor((double)x.x), (float)floor((double)x.y),
-      (float)floor((double)x.z), (float)floor((double)x.w)};
+  return vec4f{floorf(x.x), floorf(x.y), floorf(x.z), floorf(x.w)};
 }
-vec3f floor3(vec3f x) {
-  return vec3f{(float)floor((double)x.x), (float)floor((double)x.y),
-      (float)floor((double)x.z)};
-}
+vec3f floor3(vec3f x) { return vec3f{floorf(x.x), floorf(x.y), floorf(x.z)}; }
 vec4f fract4(vec4f x) { return x - floor4(x); }
 vec3f fract3(vec3f x) { return x - floor3(x); }
 
@@ -88,7 +84,7 @@ vec4f hash4(vec3f p) {
 }
 
 float voronoise(vec3f x, float u, float v) {
-  vec3f floor_point = vec3f{floor(x.x), floor(x.y), floor(x.z)};
+  vec3f floor_point = floor3(x);
   vec3f fract_point = fract3(x);
 
   double smoothness =
@@ -125,9 +121,9 @@ float voronoiDistance(vec3f x) {
   vec3f mr;
 
   float res = 8.0;
-  for (int k = -1; k <= 1; k++) {
-    for (int j = -1; j <= 1; j++)
-      for (int i = -1; i <= 1; i++) {
+  for (float k = -1; k <= 1; k++) {
+    for (float j = -1; j <= 1; j++)
+      for (float i = -1; i <= 1; i++) {
         vec3f b    = vec3f{i, j, k};
         vec4f hash = hash4(p + b);
         vec3f r    = vec3f(b) + vec3f{hash.x, hash.y, hash.z} - f;
@@ -142,9 +138,9 @@ float voronoiDistance(vec3f x) {
   }
 
   res = 8.0;
-  for (int k = -2; k <= 2; k++) {
-    for (int j = -2; j <= 2; j++) {
-      for (int i = -2; i <= 2; i++) {
+  for (float k = -2; k <= 2; k++) {
+    for (float j = -2; j <= 2; j++) {
+      for (float i = -2; i <= 2; i++) {
         vec3f b = mb + vec3f{i, j, k};
         vec3f r = vec3f(b) - f;
         float d = dot(0.5f * (mr + r), normalize(r - mr));
@@ -160,9 +156,7 @@ float voronoiDistance(vec3f x) {
 float getBorder(vec3f p) {
   float d = voronoiDistance(p);
 
-  if (d > 0.05) return d;
-
-  return 0.05f;
+  return d * smoothstep(0.03f, 0.05f, d);
 }
 
 //////////////////////////// smoothVoronoi
@@ -172,9 +166,9 @@ float smoothVoronoi(vec3f x) {
   vec3f f = fract3(x);
 
   float res = 0.0;
-  for (int k = -1; k <= 1; k++) {
-    for (int j = -1; j <= 1; j++)
-      for (int i = -1; i <= 1; i++) {
+  for (float k = -1; k <= 1; k++) {
+    for (float j = -1; j <= 1; j++)
+      for (float i = -1; i <= 1; i++) {
         vec3f b    = vec3f{i, j, k};
         auto  hash = hash4(p + b);
         vec3f r    = vec3f(b) - f + vec3f{hash.x, hash.y, hash.z};
@@ -442,7 +436,7 @@ void make_cell_voro_displacement(
     // position
     auto& pos  = shape.positions[i];
     auto& norm = shape.normals[i];
-    auto  molt = voronoiDistance(pos * params.scale) * params.height;
+    auto  molt = getBorder(pos * params.scale) * params.height;
     pos += norm * molt;
 
     // color
@@ -478,7 +472,7 @@ void make_world(shape_data& shape, const displacement_params& params) {
 }
 
 void make_displacement(shape_data& shape, const displacement_params& params) {
-  make_cell_voro_displacement(shape, params);
+  make_voro_displacement(shape, params);
   return;
   for (int i = 0; i < shape.positions.size(); i++) {
     // position
