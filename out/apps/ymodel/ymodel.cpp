@@ -33,6 +33,7 @@
 using namespace yocto;
 
 #include <filesystem>
+#include <iostream>
 
 instance_data& get_instance(scene_data& scene, const string& name) {
   for (auto idx = 0; idx < scene.instances.size(); idx++) {
@@ -56,6 +57,11 @@ void run(const vector<string>& args) {
   auto output       = "out.json"s;
   auto filename     = "scene.json"s;
   auto dense_hair   = false;
+  auto world        = false;
+  auto cell         = false;
+  auto smooth_vor   = false;
+  auto voronoise_u  = -1.0f;
+  auto voronoise_v  = -1.0f;
 
   // parse command line
   auto error = string{};
@@ -74,6 +80,11 @@ void run(const vector<string>& args) {
   add_option(cli, "output", output, "output scene");
   add_option(cli, "scene", filename, "input scene");
   add_option(cli, "dense_hair", dense_hair, "dense_hair choice");
+  add_option(cli, "world", world, "world generator choice");
+  add_option(cli, "cell", cell, "cell noise choice");
+  add_option(cli, "smooth_vor", smooth_vor, "smooth voronoise choice");
+  add_option(cli, "voronoise_u", voronoise_u, "voronoise_v value");
+  add_option(cli, "voronoise_v", voronoise_v, "voronoise_u value");
   if (!parse_cli(cli, args, error)) print_fatal(error);
 
   // load scene
@@ -85,8 +96,25 @@ void run(const vector<string>& args) {
     make_terrain(scene.shapes[get_instance(scene, terrain).shape], tparams);
   }
   if (displacement != "") {
-    make_displacement(
-        scene.shapes[get_instance(scene, displacement).shape], dparams);
+    std::cout << world << cell << smooth_vor << voronoise_u << voronoise_v
+              << std::endl;
+    if (world) {
+      make_world(
+          scene.shapes[get_instance(scene, displacement).shape], dparams);
+    } else if (cell) {
+      make_cell_voro_displacement(
+          scene.shapes[get_instance(scene, displacement).shape], dparams);
+    } else if (smooth_vor) {
+      make_smooth_voro_displacement(
+          scene.shapes[get_instance(scene, displacement).shape], dparams);
+    } else if (voronoise_u >= 0 && voronoise_v >= 0) {
+      make_voro_displacement(
+          scene.shapes[get_instance(scene, displacement).shape], dparams,
+          min(voronoise_u, 1.0f), min(voronoise_v, 1.0f));
+    } else {
+      make_displacement(
+          scene.shapes[get_instance(scene, displacement).shape], dparams);
+    }
   }
   if (hair != "" && !dense_hair) {
     scene.shapes[get_instance(scene, hair).shape]      = {};

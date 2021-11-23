@@ -156,7 +156,7 @@ float voronoiDistance(vec3f x) {
 float getBorder(vec3f p) {
   float d = voronoiDistance(p);
 
-  return d * smoothstep(0.03f, 0.05f, d);
+  return d * (smoothstep(0.0f, 0.05f, d));
 }
 
 //////////////////////////// smoothVoronoi
@@ -391,9 +391,7 @@ void make_terrain(shape_data& shape, const terrain_params& params) {
 }
 
 void make_voro_displacement(
-    shape_data& shape, const displacement_params& params) {
-  float u = 1;
-  float v = 1;
+    shape_data& shape, const displacement_params& params, float u, float v) {
   for (int i = 0; i < shape.positions.size(); i++) {
     // position
     auto& pos  = shape.positions[i];
@@ -472,8 +470,6 @@ void make_world(shape_data& shape, const displacement_params& params) {
 }
 
 void make_displacement(shape_data& shape, const displacement_params& params) {
-  make_voro_displacement(shape, params);
-  return;
   for (int i = 0; i < shape.positions.size(); i++) {
     // position
     auto& pos  = shape.positions[i];

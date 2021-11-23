@@ -96,9 +96,6 @@ struct hair_params {
 void make_hair(
     shape_data& hair, const shape_data& shape, const hair_params& params);
 
-void make_dense_hair(scene_data& scene, shape_data& hair,
-    const instance_data& object, const hair_params& params);
-
 struct grass_params {
   int num = 10000;
 };
@@ -106,6 +103,17 @@ struct grass_params {
 void make_grass(scene_data& scene, const instance_data& object,
     const vector<instance_data>& grasses, const grass_params& params);
 
+// extra credit
+
+void make_dense_hair(scene_data& scene, shape_data& hair,
+    const instance_data& object, const hair_params& params);
+void make_world(shape_data& shape, const displacement_params& params);
+void make_cell_voro_displacement(
+    shape_data& shape, const displacement_params& params);
+void make_smooth_voro_displacement(
+    shape_data& shape, const displacement_params& params);
+void make_voro_displacement(
+    shape_data& shape, const displacement_params& params, float u, float v);
 }  // namespace yocto
 
 #endif
