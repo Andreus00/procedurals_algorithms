@@ -15,8 +15,8 @@
 # ./bin/yscene render outs/03_hair4/hair4.json --output out/03_hair4.jpg --samples 60 --resolution 720
 # ./bin/yscene render outs/04_grass/grass.json --output out/04_grass.jpg --samples 25 --resolution 720 --bounces 128
 
-# ./bin/ymodel --scene tests/03_sample_elimination/sample_elimination.json --output outs/03_hair2/hair2.json --hairbase object --hair hair --hairlen 0.001 --hairstr 0.00000000001 --hairnum 200
-# ./bin/yscene render outs/03_hair2/hair2.json --output out/03_hair2_normal.jpg --samples 60 --resolution 720
+# ./bin/ymodel --scene tests/03_sample_elimination/sample_elimination.json --output outs/03_hair2/hair2.json --hairbase object --hair hair --hairlen 0.001 --hairstr 0.00000000001 --hairnum 2000
+# ./bin/yscene render outs/03_hair2/hair2.json --output out/03_hair2_normal_2000.jpg --samples 60 --resolution 720
 
-./bin/ymodel --scene tests/03_sample_elimination/sample_elimination.json --output outs/03_hair2/hair2.json --hairbase object --hair hair --hairlen 0.001 --hairstr 0.00000000001 --hairnum 200 --sample_elimination
-./bin/yscene render outs/03_hair2/hair2.json --output out/03_hair2_sample_elimination.jpg --samples 60 --resolution 720
+./bin/ymodel --scene tests/03_sample_elimination/sample_elimination.json --output outs/03_hair2/hair2.json --hairbase object --hair hair --hairlen 0.001 --hairstr 0.00000000001 --hairnum 200 --sample_elimination --influence_radius 0.01 --cell_size 0.05
+./bin/yscene render outs/03_hair2/hair2.json --output out/03_hair2_sample_elimination_200-0_01r-0_05c.jpg --samples 60 --resolution 720

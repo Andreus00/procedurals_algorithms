@@ -83,14 +83,16 @@ struct displacement_params {
 void make_displacement(shape_data& shape, const displacement_params& params);
 
 struct hair_params {
-  int   num      = 100000;
-  int   steps    = 1;
-  float lenght   = 0.02f;
-  float scale    = 250;
-  float strength = 0.01f;
-  float gravity  = 0.0f;
-  vec4f bottom   = srgb_to_rgb(vec4f{25, 25, 25, 255} / 255);
-  vec4f top      = srgb_to_rgb(vec4f{244, 164, 96, 255} / 255);
+  int   num              = 100000;
+  int   steps            = 1;
+  float lenght           = 0.02f;
+  float scale            = 250;
+  float strength         = 0.01f;
+  float gravity          = 0.0f;
+  vec4f bottom           = srgb_to_rgb(vec4f{25, 25, 25, 255} / 255);
+  vec4f top              = srgb_to_rgb(vec4f{244, 164, 96, 255} / 255);
+  float influence_radius = 0.005;
+  float cell_size        = 0.005;
 };
 
 void make_hair(

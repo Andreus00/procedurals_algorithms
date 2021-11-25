@@ -266,7 +266,7 @@ void sample_elimination(vector<vec3f>& positions, vector<vec3f>& normals,
     vector<vec2f>& texcoords, float cell_size, float influence_radius,
     int desired_samples) {
   // Create the grid
-
+  const float ALPHA = 8.0f;
   std::cout << "creating the hashgrid" << std::endl;
   auto grid = make_hash_grid(positions, cell_size);
 
@@ -280,7 +280,9 @@ void sample_elimination(vector<vec3f>& positions, vector<vec3f>& normals,
     auto sum = 0.0f;
     for (auto& neighbor_idx : neighbors) {
       auto neighbor = grid.positions[neighbor_idx];
-      sum += distance(neighbor, current_point);
+      sum += pow(
+          1.0f - distance(neighbor, current_point) / (2.0f * influence_radius),
+          ALPHA);
     }
     weight.push_back(sum);
     std::cout << sum << std::endl;
@@ -298,7 +300,6 @@ void sample_elimination(vector<vec3f>& positions, vector<vec3f>& normals,
 
   make_heap(heap_weight_positions.begin(), heap_weight_positions.end(),
       compare_entry);
-
   // while there are more samples than the required ones
   auto counter = heap_weight_positions.size() - 1;
   std::cout << "sample elimination" << std::endl;
@@ -319,7 +320,10 @@ void sample_elimination(vector<vec3f>& positions, vector<vec3f>& normals,
       // total weight of the neighbor
       auto neighbor = grid.positions[neighbor_index];
       auto dist     = distance(neighbor, eliminated_point);
-      weight[neighbor_index] -= dist;
+      weight[neighbor_index] -= pow(
+          1.0f -
+              distance(neighbor, eliminated_point) / (2.0f * influence_radius),
+          ALPHA);
     }
     counter--;
     // rebuild the heap
@@ -333,7 +337,8 @@ void sample_elimination(vector<vec3f>& positions, vector<vec3f>& normals,
   vector<vec3f> new_pos;
   vector<vec3f> new_norm;
   vector<vec2f> new_texcoord;
-  for (auto& el : heap_weight_positions) {
+  for (int i = 0; i < desired_samples; i++) {
+    auto el = heap_weight_positions[i];
     new_pos.push_back(positions[(el.position)]);
     new_norm.push_back(normals[(el.position)]);
     new_texcoord.push_back(texcoords[(el.position)]);
@@ -347,9 +352,6 @@ void sample_elimination(vector<vec3f>& positions, vector<vec3f>& normals,
     positions.pop_back();
     normals.pop_back();
     texcoords.pop_back();
-  }
-  for (auto& el : positions) {
-    std::cout << el.x << " " << el.y << " " << el.z << std::endl;
   }
 }
 
@@ -627,7 +629,8 @@ void make_hair_sample_elimination(
   vector<vec3f> normals;
   vector<vec2f> texcoords;
   sample_shape(positions, normals, texcoords, shape, params.num * 5);
-  sample_elimination(positions, normals, texcoords, 0.005, 0.005, params.num);
+  sample_elimination(positions, normals, texcoords, params.cell_size,
+      params.influence_radius, params.num);
   for (int i = 0; i < params.num; i++) {
     vector<vec3f> point_list;
     vector<vec4f> colors;

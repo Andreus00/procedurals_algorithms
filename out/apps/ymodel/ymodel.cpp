@@ -63,6 +63,8 @@ void run(const vector<string>& args) {
   auto smooth_vor         = false;
   auto voronoise_u        = -1.0f;
   auto voronoise_v        = -1.0f;
+  auto influence_radius   = 0.005f;
+  auto cell_size          = 0.005f;
 
   // parse command line
   auto error = string{};
@@ -88,12 +90,19 @@ void run(const vector<string>& args) {
   add_option(cli, "voronoise_v", voronoise_v, "voronoise_u value");
   add_option(cli, "sample_elimination", sample_elimination,
       "sample_elimination for hair");
+  add_option(cli, "influence_radius", influence_radius,
+      "influence_radius for sample elimination");
+  add_option(cli, "cell_size", cell_size, "cell_size for sample elimination");
   if (!parse_cli(cli, args, error)) print_fatal(error);
 
   // load scene
   auto scene = scene_data{};
   if (!load_scene(filename, scene, error)) print_fatal(error);
 
+  // set influence_radius and cell_size
+  if (influence_radius != 0.005) hparams.influence_radius = influence_radius;
+
+  if (cell_size != 0.005) hparams.cell_size = cell_size;
   // create procedural geometry
   if (terrain != "") {
     make_terrain(scene.shapes[get_instance(scene, terrain).shape], tparams);
