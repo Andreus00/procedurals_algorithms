@@ -44,24 +44,25 @@ instance_data& get_instance(scene_data& scene, const string& name) {
 
 void run(const vector<string>& args) {
   // command line parameters
-  auto terrain      = ""s;
-  auto tparams      = terrain_params{};
-  auto displacement = ""s;
-  auto dparams      = displacement_params{};
-  auto hair         = ""s;
-  auto hairbase     = ""s;
-  auto hparams      = hair_params{};
-  auto grass        = ""s;
-  auto grassbase    = ""s;
-  auto gparams      = grass_params{};
-  auto output       = "out.json"s;
-  auto filename     = "scene.json"s;
-  auto dense_hair   = false;
-  auto world        = false;
-  auto cell         = false;
-  auto smooth_vor   = false;
-  auto voronoise_u  = -1.0f;
-  auto voronoise_v  = -1.0f;
+  auto terrain            = ""s;
+  auto tparams            = terrain_params{};
+  auto displacement       = ""s;
+  auto dparams            = displacement_params{};
+  auto hair               = ""s;
+  auto hairbase           = ""s;
+  auto hparams            = hair_params{};
+  auto grass              = ""s;
+  auto grassbase          = ""s;
+  auto gparams            = grass_params{};
+  auto output             = "out.json"s;
+  auto filename           = "scene.json"s;
+  auto dense_hair         = false;
+  auto sample_elimination = false;
+  auto world              = false;
+  auto cell               = false;
+  auto smooth_vor         = false;
+  auto voronoise_u        = -1.0f;
+  auto voronoise_v        = -1.0f;
 
   // parse command line
   auto error = string{};
@@ -85,6 +86,8 @@ void run(const vector<string>& args) {
   add_option(cli, "smooth_vor", smooth_vor, "smooth voronoise choice");
   add_option(cli, "voronoise_u", voronoise_u, "voronoise_v value");
   add_option(cli, "voronoise_v", voronoise_v, "voronoise_u value");
+  add_option(cli, "sample_elimination", sample_elimination,
+      "sample_elimination for hair");
   if (!parse_cli(cli, args, error)) print_fatal(error);
 
   // load scene
@@ -119,8 +122,14 @@ void run(const vector<string>& args) {
   if (hair != "" && !dense_hair) {
     scene.shapes[get_instance(scene, hair).shape]      = {};
     scene.shape_names[get_instance(scene, hair).shape] = "hair";
-    make_hair(scene.shapes[get_instance(scene, hair).shape],
-        scene.shapes[get_instance(scene, hairbase).shape], hparams);
+    if (sample_elimination) {
+      make_hair_sample_elimination(
+          scene.shapes[get_instance(scene, hair).shape],
+          scene.shapes[get_instance(scene, hairbase).shape], hparams);
+    } else {
+      make_hair(scene.shapes[get_instance(scene, hair).shape],
+          scene.shapes[get_instance(scene, hairbase).shape], hparams);
+    }
   }
   if (grass != "") {
     auto grasses = vector<instance_data>{};

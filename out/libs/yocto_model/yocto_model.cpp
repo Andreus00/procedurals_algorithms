@@ -34,10 +34,10 @@
 
 #include <yocto/yocto_sampling.h>
 
+#include <algorithm>
 #include <iostream>
 
 #include "ext/perlin-noise/noise1234.h"
-
 // -----------------------------------------------------------------------------
 // USING DIRECTIVES
 // -----------------------------------------------------------------------------
@@ -249,6 +249,110 @@ void sample_shape(vector<vec3f>& positions, vector<vec3f>& normals,
   }
 }
 
+struct my_entry {
+  float* weight;
+  int    position;
+
+  inline bool operator<(const my_entry& b) const {
+    return (*weight) < (*b.weight);
+  }
+};
+
+bool compare_entry(const my_entry& a, const my_entry& b) {
+  return (*a.weight) < (*b.weight);
+}
+
+void sample_elimination(vector<vec3f>& positions, vector<vec3f>& normals,
+    vector<vec2f>& texcoords, float cell_size, float influence_radius,
+    int desired_samples) {
+  // Create the grid
+
+  std::cout << "creating the hashgrid" << std::endl;
+  auto grid = make_hash_grid(positions, cell_size);
+
+  // assign weight to each position
+  std::cout << "weight calculation" << std::endl;
+  vector<float> weight;
+  for (int i = 0; i < grid.positions.size(); i++) {
+    auto        current_point = grid.positions[i];
+    vector<int> neighbors;
+    find_neighbors(grid, neighbors, i, influence_radius);
+    auto sum = 0.0f;
+    for (auto& neighbor_idx : neighbors) {
+      auto neighbor = grid.positions[neighbor_idx];
+      sum += distance(neighbor, current_point);
+    }
+    weight.push_back(sum);
+    std::cout << sum << std::endl;
+  }
+
+  // adding the entry to a list that will be converted in a heap
+  std::cout << "building the heap" << std::endl;
+  vector<my_entry> heap_weight_positions;
+  for (int i = 0; i < weight.size(); i++) {
+    struct my_entry e = {&weight[i], i};
+    heap_weight_positions.push_back(e);
+  }
+
+  // building the heap based on the weight
+
+  make_heap(heap_weight_positions.begin(), heap_weight_positions.end(),
+      compare_entry);
+
+  // while there are more samples than the required ones
+  auto counter = heap_weight_positions.size() - 1;
+  std::cout << "sample elimination" << std::endl;
+  while (counter > desired_samples) {
+    if ((counter % 100) == 0)
+      std::cout << counter << " / " << desired_samples << std::endl;
+    // get the root of the heap and remove it
+    auto element          = heap_weight_positions[0];
+    auto eliminated_point = grid.positions[(element.position)];
+    pop_heap(
+        heap_weight_positions.begin(), heap_weight_positions.begin() + counter);
+
+    // get the neighbors of the removed position
+    vector<int> neighbors;
+    find_neighbors(grid, neighbors, element.position, influence_radius);
+    for (auto neighbor_index : neighbors) {
+      // foreach neighbor, I remove the weight of the removed position from the
+      // total weight of the neighbor
+      auto neighbor = grid.positions[neighbor_index];
+      auto dist     = distance(neighbor, eliminated_point);
+      weight[neighbor_index] -= dist;
+    }
+    counter--;
+    // rebuild the heap
+    make_heap(heap_weight_positions.begin(),
+        heap_weight_positions.begin() + counter, compare_entry);
+  }
+
+  std::cout << "writing the solution" << std::endl;
+  // write the solution
+
+  vector<vec3f> new_pos;
+  vector<vec3f> new_norm;
+  vector<vec2f> new_texcoord;
+  for (auto& el : heap_weight_positions) {
+    new_pos.push_back(positions[(el.position)]);
+    new_norm.push_back(normals[(el.position)]);
+    new_texcoord.push_back(texcoords[(el.position)]);
+  }
+  for (int i = 0; i < desired_samples; i++) {
+    positions[i] = new_pos[i];
+    normals[i]   = new_norm[i];
+    texcoords[i] = new_texcoord[i];
+  }
+  while (positions.size() > desired_samples) {
+    positions.pop_back();
+    normals.pop_back();
+    texcoords.pop_back();
+  }
+  for (auto& el : positions) {
+    std::cout << el.x << " " << el.y << " " << el.z << std::endl;
+  }
+}
+
 ///////////////////////////// density for hair
 struct density_mapped_shape_data {
   shape_data    shape;
@@ -269,7 +373,6 @@ vector<float> sample_triangles_density_cdf(const vector<vec3i>& triangles,
   auto sum = 0.0f;
   for (auto& el : cdf) {
     sum += el;
-    std::cout << el << std::endl;
   }
   return cdf;
 }
@@ -309,7 +412,6 @@ void make_dense_hair(scene_data& scene, shape_data& hair,
   vector<vec3f> normals;
   vector<vec2f> texcoords;
   vector<float> density_map;
-  std::cout << shape.positions.size() << std::endl;
   for (int i = 0; i < shape.positions.size(); i++) {
     auto texture_value = eval_texture(
         scene, material.color_tex, shape.texcoords[i]);
@@ -493,6 +595,39 @@ void make_hair(
   vector<vec3f> normals;
   vector<vec2f> texcoords;
   sample_shape(positions, normals, texcoords, shape, params.num);
+  for (int i = 0; i < params.num; i++) {
+    vector<vec3f> point_list;
+    vector<vec4f> colors;
+    vec3f         old_point;  // punto iniziale
+    vec3f         next_point = positions[i];
+    auto          norm       = normals[i];  // normale iniziale
+
+    for (int s = 0; s <= params.steps; s++) {
+      // pusho l'attuale punto
+      old_point = next_point;
+      point_list.push_back(next_point);
+      auto color_mult = s * segment_length / params.lenght;
+      colors.push_back(
+          (1 - color_mult) * params.bottom + color_mult * params.top);
+      // calcolo i dati per il prssimo punto
+      next_point = ray_point(ray3f{old_point, norm}, segment_length);
+      next_point += noise3(old_point * params.scale) * params.strength;
+      next_point.y -= params.gravity;
+      norm = normalize(next_point - old_point);
+    }
+    add_polyline(hair, point_list, colors);
+  }
+  hair.normals = compute_normals(hair);
+}
+
+void make_hair_sample_elimination(
+    shape_data& hair, const shape_data& shape, const hair_params& params) {
+  auto          segment_length = params.lenght / params.steps;
+  vector<vec3f> positions;
+  vector<vec3f> normals;
+  vector<vec2f> texcoords;
+  sample_shape(positions, normals, texcoords, shape, params.num * 5);
+  sample_elimination(positions, normals, texcoords, 0.005, 0.005, params.num);
   for (int i = 0; i < params.num; i++) {
     vector<vec3f> point_list;
     vector<vec4f> colors;

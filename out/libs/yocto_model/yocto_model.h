@@ -114,6 +114,8 @@ void make_smooth_voro_displacement(
     shape_data& shape, const displacement_params& params);
 void make_voro_displacement(
     shape_data& shape, const displacement_params& params, float u, float v);
+void make_hair_sample_elimination(
+    shape_data& hair, const shape_data& shape, const hair_params& params);
 }  // namespace yocto
 
 #endif
