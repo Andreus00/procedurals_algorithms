@@ -162,7 +162,7 @@ float getBorder(vec3f p) {
 
   if (d > 0.05) return d;
 
-  return 0.05f;
+  return d - smoothstep(0.0f, 0.05f, d);
 }
 
 //////////////////////////// smoothVoronoi
@@ -398,8 +398,8 @@ void make_terrain(shape_data& shape, const terrain_params& params) {
 
 void make_voro_displacement(
     shape_data& shape, const displacement_params& params) {
-  float u = 1;
-  float v = 1;
+  float u = 0;
+  float v = 0;
   for (int i = 0; i < shape.positions.size(); i++) {
     // position
     auto& pos  = shape.positions[i];
@@ -443,12 +443,12 @@ void make_cell_voro_displacement(
     auto& pos  = shape.positions[i];
     auto& norm = shape.normals[i];
     auto  molt = voronoiDistance(pos * params.scale) * params.height;
-    pos += norm * molt;
+    // pos += norm * molt;
 
     // color
     auto height = molt / params.height;
     auto color  = height * params.top + (1 - height) * params.bottom;
-    shape.colors.push_back(color);
+    shape.colors.push_back(vec4f{molt, molt, molt, 1});
   }
   // normals
   shape.normals = compute_normals(shape);
@@ -478,7 +478,7 @@ void make_world(shape_data& shape, const displacement_params& params) {
 }
 
 void make_displacement(shape_data& shape, const displacement_params& params) {
-  make_cell_voro_displacement(shape, params);
+  make_voro_displacement(shape, params);
   return;
   for (int i = 0; i < shape.positions.size(); i++) {
     // position
