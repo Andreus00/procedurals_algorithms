@@ -34,10 +34,10 @@
 
 #include <yocto/yocto_sampling.h>
 
+#include <algorithm>
 #include <iostream>
 
 #include "ext/perlin-noise/noise1234.h"
-
 // -----------------------------------------------------------------------------
 // USING DIRECTIVES
 // -----------------------------------------------------------------------------
@@ -70,13 +70,9 @@ vec3f noise3(const vec3f& p) {
 vec4f sin(vec4f x) { return vec4f{sinf(x.x), sinf(x.y), sinf(x.z), sinf(x.w)}; }
 // float floor(float x) { return (int)x; }
 vec4f floor4(vec4f x) {
-  return vec4f{(float)floor((double)x.x), (float)floor((double)x.y),
-      (float)floor((double)x.z), (float)floor((double)x.w)};
+  return vec4f{floorf(x.x), floorf(x.y), floorf(x.z), floorf(x.w)};
 }
-vec3f floor3(vec3f x) {
-  return vec3f{(float)floor((double)x.x), (float)floor((double)x.y),
-      (float)floor((double)x.z)};
-}
+vec3f floor3(vec3f x) { return vec3f{floorf(x.x), floorf(x.y), floorf(x.z)}; }
 vec4f fract4(vec4f x) { return x - floor4(x); }
 vec3f fract3(vec3f x) { return x - floor3(x); }
 
@@ -88,7 +84,7 @@ vec4f hash4(vec3f p) {
 }
 
 float voronoise(vec3f x, float u, float v) {
-  vec3f floor_point = vec3f{floor(x.x), floor(x.y), floor(x.z)};
+  vec3f floor_point = floor3(x);
   vec3f fract_point = fract3(x);
 
   double smoothness =
@@ -125,9 +121,9 @@ float voronoiDistance(vec3f x) {
   vec3f mr;
 
   float res = 8.0;
-  for (int k = -1; k <= 1; k++) {
-    for (int j = -1; j <= 1; j++)
-      for (int i = -1; i <= 1; i++) {
+  for (float k = -1; k <= 1; k++) {
+    for (float j = -1; j <= 1; j++)
+      for (float i = -1; i <= 1; i++) {
         vec3f b    = vec3f{i, j, k};
         vec4f hash = hash4(p + b);
         vec3f r    = vec3f(b) + vec3f{hash.x, hash.y, hash.z} - f;
@@ -142,9 +138,9 @@ float voronoiDistance(vec3f x) {
   }
 
   res = 8.0;
-  for (int k = -2; k <= 2; k++) {
-    for (int j = -2; j <= 2; j++) {
-      for (int i = -2; i <= 2; i++) {
+  for (float k = -2; k <= 2; k++) {
+    for (float j = -2; j <= 2; j++) {
+      for (float i = -2; i <= 2; i++) {
         vec3f b = mb + vec3f{i, j, k};
         vec3f r = vec3f(b) - f;
         float d = dot(0.5f * (mr + r), normalize(r - mr));
@@ -160,9 +156,7 @@ float voronoiDistance(vec3f x) {
 float getBorder(vec3f p) {
   float d = voronoiDistance(p);
 
-  if (d > 0.05) return d;
-
-  return d - smoothstep(0.0f, 0.05f, d);
+  return d * (smoothstep(0.0f, 0.05f, d));
 }
 
 //////////////////////////// smoothVoronoi
@@ -172,9 +166,9 @@ float smoothVoronoi(vec3f x) {
   vec3f f = fract3(x);
 
   float res = 0.0;
-  for (int k = -1; k <= 1; k++) {
-    for (int j = -1; j <= 1; j++)
-      for (int i = -1; i <= 1; i++) {
+  for (float k = -1; k <= 1; k++) {
+    for (float j = -1; j <= 1; j++)
+      for (float i = -1; i <= 1; i++) {
         vec3f b    = vec3f{i, j, k};
         auto  hash = hash4(p + b);
         vec3f r    = vec3f(b) - f + vec3f{hash.x, hash.y, hash.z};
@@ -255,6 +249,112 @@ void sample_shape(vector<vec3f>& positions, vector<vec3f>& normals,
   }
 }
 
+struct my_entry {
+  float* weight;
+  int    position;
+
+  inline bool operator<(const my_entry& b) const {
+    return (*weight) < (*b.weight);
+  }
+};
+
+bool compare_entry(const my_entry& a, const my_entry& b) {
+  return (*a.weight) < (*b.weight);
+}
+
+void sample_elimination(vector<vec3f>& positions, vector<vec3f>& normals,
+    vector<vec2f>& texcoords, float cell_size, float influence_radius,
+    int desired_samples) {
+  // Create the grid
+  const float ALPHA = 8.0f;
+  std::cout << "creating the hashgrid" << std::endl;
+  auto grid = make_hash_grid(positions, cell_size);
+
+  // assign weight to each position
+  std::cout << "weight calculation" << std::endl;
+  vector<float> weight;
+  for (int i = 0; i < grid.positions.size(); i++) {
+    auto        current_point = grid.positions[i];
+    vector<int> neighbors;
+    find_neighbors(grid, neighbors, i, influence_radius);
+    auto sum = 0.0f;
+    for (auto& neighbor_idx : neighbors) {
+      auto neighbor = grid.positions[neighbor_idx];
+      sum += pow(
+          1.0f - distance(neighbor, current_point) / (2.0f * influence_radius),
+          ALPHA);
+    }
+    weight.push_back(sum);
+    std::cout << sum << std::endl;
+  }
+
+  // adding the entry to a list that will be converted in a heap
+  std::cout << "building the heap" << std::endl;
+  vector<my_entry> heap_weight_positions;
+  for (int i = 0; i < weight.size(); i++) {
+    struct my_entry e = {&weight[i], i};
+    heap_weight_positions.push_back(e);
+  }
+
+  // building the heap based on the weight
+
+  make_heap(heap_weight_positions.begin(), heap_weight_positions.end(),
+      compare_entry);
+  // while there are more samples than the required ones
+  auto counter = heap_weight_positions.size() - 1;
+  std::cout << "sample elimination" << std::endl;
+  while (counter > desired_samples) {
+    if ((counter % 100) == 0)
+      std::cout << counter << " / " << desired_samples << std::endl;
+    // get the root of the heap and remove it
+    auto element          = heap_weight_positions[0];
+    auto eliminated_point = grid.positions[(element.position)];
+    pop_heap(
+        heap_weight_positions.begin(), heap_weight_positions.begin() + counter);
+
+    // get the neighbors of the removed position
+    vector<int> neighbors;
+    find_neighbors(grid, neighbors, element.position, influence_radius);
+    for (auto neighbor_index : neighbors) {
+      // foreach neighbor, I remove the weight of the removed position from the
+      // total weight of the neighbor
+      auto neighbor = grid.positions[neighbor_index];
+      auto dist     = distance(neighbor, eliminated_point);
+      weight[neighbor_index] -= pow(
+          1.0f -
+              distance(neighbor, eliminated_point) / (2.0f * influence_radius),
+          ALPHA);
+    }
+    counter--;
+    // rebuild the heap
+    make_heap(heap_weight_positions.begin(),
+        heap_weight_positions.begin() + counter, compare_entry);
+  }
+
+  std::cout << "writing the solution" << std::endl;
+  // write the solution
+
+  vector<vec3f> new_pos;
+  vector<vec3f> new_norm;
+  vector<vec2f> new_texcoord;
+  for (int i = 0; i < desired_samples; i++) {
+    auto el = heap_weight_positions[i];
+    new_pos.push_back(positions[(el.position)]);
+    new_norm.push_back(normals[(el.position)]);
+    new_texcoord.push_back(texcoords[(el.position)]);
+  }
+  for (int i = 0; i < desired_samples; i++) {
+    positions[i] = new_pos[i];
+    normals[i]   = new_norm[i];
+    texcoords[i] = new_texcoord[i];
+  }
+  while (positions.size() > desired_samples) {
+    positions.pop_back();
+    normals.pop_back();
+    texcoords.pop_back();
+  }
+}
+
 ///////////////////////////// density for hair
 struct density_mapped_shape_data {
   shape_data    shape;
@@ -275,7 +375,6 @@ vector<float> sample_triangles_density_cdf(const vector<vec3i>& triangles,
   auto sum = 0.0f;
   for (auto& el : cdf) {
     sum += el;
-    std::cout << el << std::endl;
   }
   return cdf;
 }
@@ -315,7 +414,6 @@ void make_dense_hair(scene_data& scene, shape_data& hair,
   vector<vec3f> normals;
   vector<vec2f> texcoords;
   vector<float> density_map;
-  std::cout << shape.positions.size() << std::endl;
   for (int i = 0; i < shape.positions.size(); i++) {
     auto texture_value = eval_texture(
         scene, material.color_tex, shape.texcoords[i]);
@@ -397,9 +495,13 @@ void make_terrain(shape_data& shape, const terrain_params& params) {
 }
 
 void make_voro_displacement(
+<<<<<<< HEAD
     shape_data& shape, const displacement_params& params) {
   float u = 0;
   float v = 0;
+=======
+    shape_data& shape, const displacement_params& params, float u, float v) {
+>>>>>>> 810a2c6cd67751f9d8ce031d0ec5a991bd686b55
   for (int i = 0; i < shape.positions.size(); i++) {
     // position
     auto& pos  = shape.positions[i];
@@ -442,8 +544,13 @@ void make_cell_voro_displacement(
     // position
     auto& pos  = shape.positions[i];
     auto& norm = shape.normals[i];
+<<<<<<< HEAD
     auto  molt = voronoiDistance(pos * params.scale) * params.height;
     // pos += norm * molt;
+=======
+    auto molt = getBorder(pos * params.scale) * params.height;
+    pos += norm * molt;
+>>>>>>> 810a2c6cd67751f9d8ce031d0ec5a991bd686b55
 
     // color
     auto height = molt / params.height;
@@ -478,8 +585,11 @@ void make_world(shape_data& shape, const displacement_params& params) {
 }
 
 void make_displacement(shape_data& shape, const displacement_params& params) {
+<<<<<<< HEAD
   make_voro_displacement(shape, params);
   return;
+=======
+>>>>>>> 810a2c6cd67751f9d8ce031d0ec5a991bd686b55
   for (int i = 0; i < shape.positions.size(); i++) {
     // position
     auto& pos  = shape.positions[i];
@@ -503,6 +613,40 @@ void make_hair(
   vector<vec3f> normals;
   vector<vec2f> texcoords;
   sample_shape(positions, normals, texcoords, shape, params.num);
+  for (int i = 0; i < params.num; i++) {
+    vector<vec3f> point_list;
+    vector<vec4f> colors;
+    vec3f         old_point;  // punto iniziale
+    vec3f         next_point = positions[i];
+    auto          norm       = normals[i];  // normale iniziale
+
+    for (int s = 0; s <= params.steps; s++) {
+      // pusho l'attuale punto
+      old_point = next_point;
+      point_list.push_back(next_point);
+      auto color_mult = s * segment_length / params.lenght;
+      colors.push_back(
+          (1 - color_mult) * params.bottom + color_mult * params.top);
+      // calcolo i dati per il prssimo punto
+      next_point = ray_point(ray3f{old_point, norm}, segment_length);
+      next_point += noise3(old_point * params.scale) * params.strength;
+      next_point.y -= params.gravity;
+      norm = normalize(next_point - old_point);
+    }
+    add_polyline(hair, point_list, colors);
+  }
+  hair.normals = compute_normals(hair);
+}
+
+void make_hair_sample_elimination(
+    shape_data& hair, const shape_data& shape, const hair_params& params) {
+  auto          segment_length = params.lenght / params.steps;
+  vector<vec3f> positions;
+  vector<vec3f> normals;
+  vector<vec2f> texcoords;
+  sample_shape(positions, normals, texcoords, shape, params.num * 5);
+  sample_elimination(positions, normals, texcoords, params.cell_size,
+      params.influence_radius, params.num);
   for (int i = 0; i < params.num; i++) {
     vector<vec3f> point_list;
     vector<vec4f> colors;
