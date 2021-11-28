@@ -65,6 +65,8 @@ void run(const vector<string>& args) {
   auto voronoise_v        = -1.0f;
   auto influence_radius   = 0.005f;
   auto cell_size          = 0.005f;
+  auto tree               = false;
+  auto trparams           = tree_params{};
 
   // parse command line
   auto error = string{};
@@ -93,6 +95,7 @@ void run(const vector<string>& args) {
   add_option(cli, "influence_radius", influence_radius,
       "influence_radius for sample elimination");
   add_option(cli, "cell_size", cell_size, "cell_size for sample elimination");
+  add_option(cli, "tree", tree, "tree");
   if (!parse_cli(cli, args, error)) print_fatal(error);
 
   // load scene
@@ -104,6 +107,15 @@ void run(const vector<string>& args) {
 
   if (cell_size != 0.005) hparams.cell_size = cell_size;
   // create procedural geometry
+  if (tree) {
+    generate_tree(scene, {0, 0, 0},
+        {
+            0,
+            1,
+            0,
+        },
+        trparams);
+  }
   if (terrain != "") {
     make_terrain(scene.shapes[get_instance(scene, terrain).shape], tparams);
   }

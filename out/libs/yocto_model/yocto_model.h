@@ -118,6 +118,39 @@ void make_voro_displacement(
     shape_data& shape, const displacement_params& params, float u, float v);
 void make_hair_sample_elimination(
     shape_data& hair, const shape_data& shape, const hair_params& params);
+
+struct Branch {
+  vec3f start;
+
+  vec3f end;
+
+  vec3f direction;
+
+  int parent_index;
+
+  vector<struct Branch> _children;
+
+  vector<vec3f> _attractors;
+};
+
+void                  addChild(struct Branch* parent, struct Branch child);
+vector<struct Branch> getChildren(struct Branch* parent);
+vector<vec3f>         getAttractors(struct Branch* parent);
+
+void init_branch(
+    struct Branch* b, vec3f start, vec3f end, vec3f direction, int parent);
+
+struct tree_params {
+  float step_len     = 0.01;  // len of each step of the segments
+  float range        = 0.1f;  // attraction range
+  float crown_radius = 0.5f;  // radius of the crown
+  float crown_height = 0.7f;  // height of the crown
+  float leaves_num   = 300;   // number of points of the crown
+};
+
+void generate_tree(scene_data& scene, const vec3f start, const vec3f norm,
+    const tree_params& params);
+
 }  // namespace yocto
 
 #endif

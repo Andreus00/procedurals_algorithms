@@ -285,7 +285,6 @@ void sample_elimination(vector<vec3f>& positions, vector<vec3f>& normals,
           ALPHA);
     }
     weight.push_back(sum);
-    std::cout << sum << std::endl;
   }
 
   // adding the entry to a list that will be converted in a heap
@@ -495,13 +494,7 @@ void make_terrain(shape_data& shape, const terrain_params& params) {
 }
 
 void make_voro_displacement(
-<<<<<<< HEAD
-    shape_data& shape, const displacement_params& params) {
-  float u = 0;
-  float v = 0;
-=======
     shape_data& shape, const displacement_params& params, float u, float v) {
->>>>>>> 810a2c6cd67751f9d8ce031d0ec5a991bd686b55
   for (int i = 0; i < shape.positions.size(); i++) {
     // position
     auto& pos  = shape.positions[i];
@@ -544,13 +537,8 @@ void make_cell_voro_displacement(
     // position
     auto& pos  = shape.positions[i];
     auto& norm = shape.normals[i];
-<<<<<<< HEAD
-    auto  molt = voronoiDistance(pos * params.scale) * params.height;
-    // pos += norm * molt;
-=======
-    auto molt = getBorder(pos * params.scale) * params.height;
+    auto  molt = getBorder(pos * params.scale) * params.height;
     pos += norm * molt;
->>>>>>> 810a2c6cd67751f9d8ce031d0ec5a991bd686b55
 
     // color
     auto height = molt / params.height;
@@ -585,11 +573,6 @@ void make_world(shape_data& shape, const displacement_params& params) {
 }
 
 void make_displacement(shape_data& shape, const displacement_params& params) {
-<<<<<<< HEAD
-  make_voro_displacement(shape, params);
-  return;
-=======
->>>>>>> 810a2c6cd67751f9d8ce031d0ec5a991bd686b55
   for (int i = 0; i < shape.positions.size(); i++) {
     // position
     auto& pos  = shape.positions[i];
@@ -701,6 +684,147 @@ void make_grass(scene_data& scene, const instance_data& object,
     new_grass.frame *= rotation_frame(new_grass.frame.z, rotate_z);
 
     scene.instances.push_back(new_grass);
+  }
+}
+
+////////////////////////////////////// Trees
+
+void addChild(struct Branch* parent, struct Branch child) {
+  parent->_children.push_back(child);
+}
+vector<struct Branch> getChildren(struct Branch* parent) {
+  return parent->_children;
+}
+vector<vec3f> getAttractors(struct Branch* parent) {
+  return parent->_attractors;
+}
+
+void init_branch(
+    struct Branch* b, vec3f start, vec3f end, vec3f direction, int parent) {
+  b->start        = start;
+  b->end          = end;
+  b->direction    = direction;
+  b->parent_index = parent;
+}
+
+void draw_branch(scene_data& scene, struct Branch* b, int shape, int material) {
+  instance_data inst;
+  inst.material = material;
+  inst.shape    = shape;
+  inst.frame    = frame3f{{1, 0, 0}, {0, 1, 0}, {0, 0, 1}, b->start};
+
+  float rotate_x = pif / 2;
+  inst.frame *= rotation_frame(inst.frame.x, rotate_x);
+
+  scene.instances.push_back(inst);
+}
+
+void leafs_distribution(vector<vec3f>* out, vec3f base, float crown_radius,
+    int number, float height) {
+  auto rng = make_rng(666);
+  for (int i = 0; i < number; i++) {
+    vec3f rand = rand3f(rng);
+    vec3f D    = {cos(rand[0] * 2.0f * pif) * sin(rand[1] * 2.0f * pif),
+        sin(rand[0] * 2.0f * pif) * sin(rand[1] * 2.0f * pif),
+        cos(rand[1] * 2.0f * pif)};
+    vec3f sampled_point = D * (rand[2] * crown_radius);
+    out->push_back(sampled_point + vec3f{0, height, 0});
+  }
+}
+
+void generate_tree(scene_data& scene, const vec3f start, const vec3f norm,
+    const tree_params& params) {
+  auto rng = make_rng(777);
+  // create the first branch
+  struct Branch first_branch;
+  init_branch(&first_branch, start, start + norm * params.step_len, norm, 0);
+  // sampling the points for the crown of the tree
+  vector<vec3f> crown_points;
+  leafs_distribution(&crown_points, first_branch.start, params.crown_radius,
+      params.leaves_num * 4, params.crown_height);
+
+  // Useless vecors. I need them for the sample elimination call.
+  vector<vec3f> normals(params.leaves_num * 4, zero3f);
+  vector<vec2f> texcoord(params.leaves_num * 4, zero2f);
+  sample_elimination(crown_points, normals, texcoord, params.range * 0.4,
+      params.range * 0.8, params.leaves_num);
+
+  // draw the points for the visualization
+  auto          sphere = make_sphere(32, 0.01f);
+  material_data sphere_material;
+  sphere_material.color = {1, 0, 0};
+  sphere_material.type  = material_type::matte;
+  scene.shapes.push_back(sphere);
+  scene.materials.push_back(sphere_material);
+
+  // simulate the growth of the tree
+
+  // create the cilinder
+  auto cilinder = make_uvcylinder(vec3i{32, 32, 32},
+      vec2f{params.step_len, params.step_len}, vec3f{(1), (1), (1)});
+
+  scene.shapes.push_back(cilinder);
+  auto cilinder_index = scene.shapes.size() - 1;
+
+  material_data segment_material;
+  segment_material.color = {1, 0, 1};
+  segment_material.type  = material_type::matte;
+  scene.materials.push_back(segment_material);
+  auto material_index = scene.materials.size() - 1;
+
+  vector<struct Branch> branches;
+  branches.push_back(first_branch);
+  int parent = 0;
+  for (int i = 0; i < 1000; i++) {
+    struct Branch current;
+    vec3f         norm = normalize(branches[parent].direction * rand3f(rng));
+    vec3f         cur_start = branches[parent].end;
+
+    // trovo i punti vicini
+    vector<int> neighbor;
+    for (int i = 0; i < crown_points.size(); i++) {
+      auto p    = crown_points[i];
+      auto dist = distance(cur_start, p);
+      if (dist < params.range) {
+        std::cout << dist << " " << params.range << std::endl;
+        neighbor.push_back(i);
+      }
+    }
+
+    // calcolo l'influenza dei vicini
+
+    for (auto& index : neighbor) {
+      auto neighbor = crown_points[index];
+      norm += normalize(neighbor - cur_start);
+    }
+    if (neighbor.size() > 0) norm /= neighbor.size();
+    // cercolo il punto finale del branch
+    norm          = normalize(norm);
+    vec3f cur_end = cur_start + norm * params.step_len;
+
+    // rimuovo i punti dalla griglia se sono troppo vicino
+    std::sort(neighbor.begin(), neighbor.end());
+    for (int i = neighbor.size() - 1; i >= 0; i--) {
+      auto dist = distance(cur_start, crown_points[neighbor[i]]);
+      if (dist < params.range) {
+        crown_points.erase(crown_points.begin() + neighbor[i]);
+        std::cout << dist << " , " << params.range << std::endl;
+      }
+    }
+
+    init_branch(&current, cur_start, cur_end, norm, parent);
+    branches.push_back(current);
+    parent++;
+
+    draw_branch(scene, &current, cilinder_index, material_index);
+  }
+
+  for (auto& el : crown_points) {
+    instance_data new_point;
+    new_point.shape    = scene.shapes.size() - 2;
+    new_point.material = scene.materials.size() - 2;
+    new_point.frame    = frame3f{{1, 0, 0}, {0, 1, 0}, {0, 0, 1}, el};
+    scene.instances.push_back(new_point);
   }
 }
 
