@@ -713,8 +713,14 @@ void draw_branch(scene_data& scene, struct Branch* b, int shape, int material) {
   inst.shape    = shape;
   inst.frame    = frame3f{{1, 0, 0}, {0, 1, 0}, {0, 0, 1}, b->start};
 
+  // todo aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
   float rotate_x = pif / 2;
   inst.frame *= rotation_frame(inst.frame.x, rotate_x);
+
+  // ruoto il cilindro verso la normale
+  float rotate_z = pif * 2 * b->direction.z;
+  inst.frame *= rotation_frame(inst.frame.z, rotate_z);
 
   scene.instances.push_back(inst);
 }
@@ -746,8 +752,9 @@ void generate_tree(scene_data& scene, const vec3f start, const vec3f norm,
   // Useless vecors. I need them for the sample elimination call.
   vector<vec3f> normals(params.leaves_num * 4, zero3f);
   vector<vec2f> texcoord(params.leaves_num * 4, zero2f);
-  sample_elimination(crown_points, normals, texcoord, params.range * 0.4,
-      params.range * 0.8, params.leaves_num);
+  sample_elimination(crown_points, normals, texcoord,
+      params.crown_points_distance * 0.4, params.crown_points_distance * 0.8,
+      params.leaves_num);
 
   // draw the points for the visualization
   auto          sphere = make_sphere(32, 0.01f);
@@ -774,47 +781,42 @@ void generate_tree(scene_data& scene, const vec3f start, const vec3f norm,
 
   vector<struct Branch> branches;
   branches.push_back(first_branch);
-  int parent = 0;
-  for (int i = 0; i < 1000; i++) {
+  int queue_start = 0;
+  for (int i = 0; i < params.steps; i++) {
     struct Branch current;
-    vec3f         norm = normalize(branches[parent].direction * rand3f(rng));
-    vec3f         cur_start = branches[parent].end;
+    struct Branch parent     = branches[queue_start];
+    auto          randomness = rand3f(rng);
+    vec3f norm      = normalize(parent.direction * clamp(randomness, 0.3, 0.9));
+    vec3f cur_start = parent.end;
 
     // trovo i punti vicini
-    vector<int> neighbor;
-    for (int i = 0; i < crown_points.size(); i++) {
+    auto sum = zero3f;
+    for (int i = crown_points.size() - 1; i >= 0; i--) {
       auto p    = crown_points[i];
-      auto dist = distance(cur_start, p);
+      auto dist = distance(p, cur_start);
       if (dist < params.range) {
-        std::cout << dist << " " << params.range << std::endl;
-        neighbor.push_back(i);
+        sum += normalize(p - cur_start);
+        if (dist < params.range * 0.4) {
+          crown_points.erase(crown_points.begin() + i);
+
+          auto          fork_norm = parent.direction;
+          struct Branch fork_branch;
+          init_branch(&fork_branch, cur_start,
+              cur_start + fork_norm * params.step_len, fork_norm, queue_start);
+          branches.push_back(fork_branch);
+          draw_branch(scene, &fork_branch, cilinder_index, material_index);
+        }
       }
     }
-
-    // calcolo l'influenza dei vicini
-
-    for (auto& index : neighbor) {
-      auto neighbor = crown_points[index];
-      norm += normalize(neighbor - cur_start);
-    }
-    if (neighbor.size() > 0) norm /= neighbor.size();
-    // cercolo il punto finale del branch
-    norm          = normalize(norm);
+    //  cercolo il punto finale del branch
+    norm          = normalize(norm + sum);
     vec3f cur_end = cur_start + norm * params.step_len;
 
-    // rimuovo i punti dalla griglia se sono troppo vicino
-    std::sort(neighbor.begin(), neighbor.end());
-    for (int i = neighbor.size() - 1; i >= 0; i--) {
-      auto dist = distance(cur_start, crown_points[neighbor[i]]);
-      if (dist < params.range) {
-        crown_points.erase(crown_points.begin() + neighbor[i]);
-        std::cout << dist << " , " << params.range << std::endl;
-      }
-    }
-
-    init_branch(&current, cur_start, cur_end, norm, parent);
+    // std::cout << norm.x << " " << norm.y << " " << norm.z << " " <<
+    // std::endl;
+    init_branch(&current, cur_start, cur_end, norm, queue_start);
     branches.push_back(current);
-    parent++;
+    queue_start++;
 
     draw_branch(scene, &current, cilinder_index, material_index);
   }
@@ -826,6 +828,19 @@ void generate_tree(scene_data& scene, const vec3f start, const vec3f norm,
     new_point.frame    = frame3f{{1, 0, 0}, {0, 1, 0}, {0, 0, 1}, el};
     scene.instances.push_back(new_point);
   }
+  material_data ray_sphere;
+  ray_sphere.color = {0.8, 0.8, 0.8};
+  ray_sphere.type  = material_type::transparent;
+  scene.materials.push_back(ray_sphere);
+  auto          ray_sphere_index = scene.materials.size() - 1;
+  instance_data new_ray_sphere;
+  new_ray_sphere.frame = frame3f{
+      {1, 0, 0}, {0, 1, 0}, {0, 0, 1}, branches.back().end};
+  new_ray_sphere.material = ray_sphere_index;
+  auto ray_sphere_sh      = make_sphere(32, params.range);
+  scene.shapes.push_back(ray_sphere_sh);
+  new_ray_sphere.shape = scene.shapes.size() - 1;
+  scene.instances.push_back(new_ray_sphere);
 }
 
 }  // namespace yocto

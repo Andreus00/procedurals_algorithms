@@ -108,11 +108,6 @@
   ],
   "instances": [
     {
-      "name": "floor",
-      "shape": 0,
-      "material": 0
-    },
-    {
       "name": "arealight1",
       "frame": [
         0.8944271802902222,

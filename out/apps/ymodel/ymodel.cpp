@@ -96,6 +96,7 @@ void run(const vector<string>& args) {
       "influence_radius for sample elimination");
   add_option(cli, "cell_size", cell_size, "cell_size for sample elimination");
   add_option(cli, "tree", tree, "tree");
+  add_option(cli, "brsteps", trparams.steps, "number of steps");
   if (!parse_cli(cli, args, error)) print_fatal(error);
 
   // load scene

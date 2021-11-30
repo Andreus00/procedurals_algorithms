@@ -141,11 +141,13 @@ void init_branch(
     struct Branch* b, vec3f start, vec3f end, vec3f direction, int parent);
 
 struct tree_params {
-  float step_len     = 0.01;  // len of each step of the segments
-  float range        = 0.1f;  // attraction range
-  float crown_radius = 0.5f;  // radius of the crown
-  float crown_height = 0.7f;  // height of the crown
-  float leaves_num   = 300;   // number of points of the crown
+  float step_len              = 0.003;  // len of each step of the segments
+  float range                 = 0.15f;  // attraction range
+  float crown_radius          = 0.5f;   // radius of the crown
+  float crown_height          = 0.7f;   // height of the crown
+  float crown_points_distance = 0.1;
+  float leaves_num            = 800;  // number of points of the crown
+  int   steps                 = 300;
 };
 
 void generate_tree(scene_data& scene, const vec3f start, const vec3f norm,

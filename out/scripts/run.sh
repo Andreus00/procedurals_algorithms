@@ -21,7 +21,10 @@
 # ./bin/ymodel --scene tests/03_sample_elimination/sample_elimination.json --output outs/03_hair2/hair2.json --hairbase object --hair hair --hairlen 0.001 --hairstr 0.00000000001 --hairnum 200 --sample_elimination --influence_radius 0.01 --cell_size 0.05
 # ./bin/yscene render outs/03_hair2/hair2.json --output out/03_hair2_sample_elimination_200-0_01r-0_05c.jpg --samples 60 --resolution 720
 
+# for i in 100 130 160 200 230 260 300; do
+#     ./bin/ymodel --scene tests/05_tree/tree.json --output outs/05_tree/tree.json --tree --brsteps $i
+#     ./bin/yscene render outs/05_tree/tree.json --output out/05_tree.jpg --samples 2 --resolution 720
+# done
 
-./bin/ymodel --scene tests/05_tree/tree.json --output outs/05_tree/tree.json --tree
+./bin/ymodel --scene tests/05_tree/tree.json --output outs/05_tree/tree.json --tree --brsteps 50000
 ./bin/yscene render outs/05_tree/tree.json --output out/05_tree.jpg --samples 2 --resolution 720
-
