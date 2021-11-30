@@ -821,13 +821,13 @@ void generate_tree(scene_data& scene, const vec3f start, const vec3f norm,
     draw_branch(scene, &current, cilinder_index, material_index);
   }
 
-  for (auto& el : crown_points) {
-    instance_data new_point;
-    new_point.shape    = scene.shapes.size() - 2;
-    new_point.material = scene.materials.size() - 2;
-    new_point.frame    = frame3f{{1, 0, 0}, {0, 1, 0}, {0, 0, 1}, el};
-    scene.instances.push_back(new_point);
-  }
+  // for (auto& el : crown_points) {
+  //   instance_data new_point;
+  //   new_point.shape    = scene.shapes.size() - 2;
+  //   new_point.material = scene.materials.size() - 2;
+  //   new_point.frame    = frame3f{{1, 0, 0}, {0, 1, 0}, {0, 0, 1}, el};
+  //   scene.instances.push_back(new_point);
+  // }
   material_data ray_sphere;
   ray_sphere.color = {0.8, 0.8, 0.8};
   ray_sphere.type  = material_type::transparent;
