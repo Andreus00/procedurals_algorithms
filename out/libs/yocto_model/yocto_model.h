@@ -128,26 +128,33 @@ struct Branch {
 
   int parent_index;
 
-  vector<struct Branch> _children;
+  float thickness;
+
+  vector<int> _children;
 
   vector<vec3f> _attractors;
 };
 
-void                  addChild(struct Branch* parent, struct Branch child);
-vector<struct Branch> getChildren(struct Branch* parent);
-vector<vec3f>         getAttractors(struct Branch* parent);
+void          addChild(struct Branch* parent, int child);
+vector<int>   getChildren(struct Branch* parent);
+vector<vec3f> getAttractors(struct Branch* parent);
 
 void init_branch(
     struct Branch* b, vec3f start, vec3f end, vec3f direction, int parent);
 
 struct tree_params {
-  float step_len              = 0.003;  // len of each step of the segments
-  float range                 = 0.15f;  // attraction range
-  float crown_radius          = 0.5f;   // radius of the crown
-  float crown_height          = 0.7f;   // height of the crown
+  float step_len              = 0.02;   // len of each step of the segments
+  float range                 = 0.17f;  // attraction range
+  float kill_range            = 0.16f;
+  float crown_radius          = 0.4f;  // radius of the crown
+  float crown_height          = 0.8f;  // height of the crown
   float crown_points_distance = 0.1;
-  float leaves_num            = 800;  // number of points of the crown
+  float leaves_num            = 100;  // number of points of the crown
   int   steps                 = 300;
+  float fork_chance           = 0.7f;
+  float thickness             = 0.01;
+  float thickness_decrease    = 0.999999;
+  float ignore_points_behind  = -0.3f;
 };
 
 void generate_tree(scene_data& scene, const vec3f start, const vec3f norm,
