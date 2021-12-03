@@ -387,7 +387,7 @@ void sample_shape_mapped(vector<vec3f>& positions, vector<vec3f>& normals,
 
   auto cdf = sample_triangles_density_cdf(
       triangles, shape.shape.positions, shape.density_map);
-  auto rng = make_rng((int)(0xC + 0x1 + 0xA + 0));
+  auto rng = make_rng((int)(1234));
   for (auto idx = 0; idx < num; idx++) {
     auto [elem, uv] = sample_triangles(cdf, rand1f(rng), rand2f(rng));
     auto q          = triangles[elem];
@@ -660,7 +660,7 @@ void make_grass(scene_data& scene, const instance_data& object,
   vector<vec3f> positions;
   vector<vec3f> normals;
   vector<vec2f> texcoords;
-  auto          rng = rng_state(69420, 666);
+  auto          rng = rng_state(1234, 890);
   sample_shape(
       positions, normals, texcoords, scene.shapes[object.shape], params.num);
   for (int i = 0; i < params.num; i++) {
@@ -717,9 +717,9 @@ void draw_branch(scene_data& scene, struct Branch* b, int shape, int material) {
   scene.instances.push_back(inst);
 }
 
-void leafs_distribution(vector<vec3f>* out, vec3f base, float crown_radius,
-    int number, float height) {
-  auto rng = make_rng(666);
+void crown_points_distribution(vector<vec3f>* out, vec3f base,
+    float crown_radius, int number, float height) {
+  auto rng = make_rng(678);
   for (int i = 0; i < number; i++) {
     vec3f rand = rand3f(rng);
     vec3f D    = {cos(rand[0] * 2.0f * pif) * sin(rand[1] * 2.0f * pif),
@@ -730,29 +730,49 @@ void leafs_distribution(vector<vec3f>* out, vec3f base, float crown_radius,
   }
 }
 
-bool is_in_range(vec3f p, float radius, vec3f base, float height) {
+bool is_in_range(
+    vec3f p, float step_len, float radius, vec3f base, float height) {
   auto point_center = distance(p, base + vec3f{0, height, 0});
-  return point_center < radius;
+  return point_center < (radius + step_len * 5);
+}
+
+vec3f fbm22(vec3f p) {
+  auto v = vec3f{fbm(p, 8), fbm(p + 2.231, 8), fbm(p + 4.12243, 8)};
+  return v;
+}  // namespace yocto
+
+void bark_noise(shape_data& cil, vec3f start) {
+  const float CRACK_zebra_amp = 1.7, CRACK_ZEBRA_SCALE = 1.5;
+  for (int i = 0; i < cil.positions.size(); i++) {
+    auto p = cil.positions[i];
+    auto D = fbm22((p + start) * 150);
+
+    auto H = voronoise(D, 1, 0);
+
+    cil.colors.push_back(rgb_to_rgba(vec3f{0.4, 0.1, 0.0} * H));
+  }
 }
 
 void generate_tree(scene_data& scene, const vec3f start, const vec3f norm,
     const tree_params& params) {
-  auto rng = make_rng(777);
+  const int BRANCH_FACES = 16;
+
+  auto rng = make_rng(424242);
   // create the first branch
   struct Branch first_branch;
   init_branch(&first_branch, start, start + norm * params.step_len, norm, 0,
       params.thickness);
   // sampling the points for the crown of the tree
   vector<vec3f> crown_points;
-  leafs_distribution(&crown_points, first_branch.start, params.crown_radius,
-      params.leaves_num * 4, params.crown_height);
+  crown_points_distribution(&crown_points, first_branch.start,
+      params.crown_radius, params.crown_points_num * 4, params.crown_height);
 
   // Useless vecors. I need them for the sample elimination call.
-  vector<vec3f> normals(params.leaves_num * 4, zero3f);
-  vector<vec2f> texcoord(params.leaves_num * 4, zero2f);
+  vector<vec3f> normals(params.crown_points_num * 4, zero3f);
+  vector<vec2f> texcoord(params.crown_points_num * 4, zero2f);
   sample_elimination(crown_points, normals, texcoord,
       params.crown_points_distance * 0.4, params.crown_points_distance * 0.8,
-      params.leaves_num);
+      params.crown_points_num);
 
   // draw the points for the visualization
   auto          sphere = make_sphere(32, 0.01f);
@@ -767,105 +787,138 @@ void generate_tree(scene_data& scene, const vec3f start, const vec3f norm,
   // simulate the growth of the tree
 
   // create the cilinder
-  auto cilinder = make_uvcylinder(vec3i{32, 32, 32},
+  auto cilinder = make_uvcylinder(
+      vec3i{BRANCH_FACES, BRANCH_FACES, BRANCH_FACES},
       vec2f{params.thickness, params.step_len / 2}, vec3f{(1), (1), (1)});
 
   scene.shapes.push_back(cilinder);
   auto cilinder_index = scene.shapes.size() - 1;
 
   material_data segment_material;
-  segment_material.color = {1, 0, 1};
+  segment_material.color = {0.4, 0.1, 0.0};
   segment_material.type  = material_type::matte;
   scene.materials.push_back(segment_material);
   auto material_index = scene.materials.size() - 1;
+
+  auto initial_shape_number = scene.shapes.size() - 1;
 
   vector<struct Branch> branches;
   branches.push_back(first_branch);
   int queue_start   = 0;
   int division_flag = 0;
-  for (int i = 0; i < params.steps; i++) {
-    struct Branch current;
-    struct Branch parent = branches[queue_start];
-    if (queue_start > branches.size() - 1 || crown_points.size() == 0) break;
-    if (division_flag > 2) {
-      if (!is_in_range(parent.start, params.crown_radius, first_branch.start,
-              params.crown_height)) {
-        queue_start++;
-        continue;
+  try {
+    for (int i = 0; i < params.steps; i++) {
+      if (i % 100 == 0) {
+        std::cout << i << std::endl;
       }
-    }
-
-    auto  randomness = rand3f(rng);
-    vec3f norm       = normalize(parent.direction * (randomness);
-    vec3f cur_start  = parent.end;
-    int   forks      = 0;
-    // trovo i punti vicini
-    auto sum = zero3f;
-    for (int i = crown_points.size() - 1; i >= 0; i--) {
-      auto p                            = crown_points[i];
-      auto dist                         = distance(p, cur_start);
-      auto curstart_to_p                = normalize(p - cur_start);
-      auto dot_curdirection_curstarttop = dot(curstart_to_p, parent.direction);
-      std::cout << dot_curdirection_curstarttop << std::endl;
-      if (dist < params.range &&
-          dot_curdirection_curstarttop > params.ignore_points_behind) {
-        sum += curstart_to_p;
-        if (dist < params.kill_range) {
-          crown_points.erase(crown_points.begin() + i);
-          forks++;
+      struct Branch current;
+      struct Branch parent = branches[queue_start];
+      if (queue_start > branches.size() - 1 || crown_points.size() == 0) break;
+      if (division_flag > 2) {
+        if (!is_in_range(parent.start, params.step_len, params.crown_radius,
+                first_branch.start, params.crown_height)) {
+          queue_start++;
+          continue;
         }
       }
-    }
-    norm = normalize((norm + sum));
-    if (forks > 0) {
-      if (rand1f(rng) < params.fork_chance) {
-        auto fork_norm = normalize(
-            reflect(parent.direction, norm) * rand3f(rng));
-        struct Branch fork_branch;
-        init_branch(&fork_branch, cur_start,
-            cur_start + fork_norm * params.step_len, fork_norm, queue_start,
-            parent.thickness * params.thickness_decrease);
-        branches.push_back(fork_branch);
-        draw_branch(scene, &fork_branch, cilinder_index, material_index);
-        division_flag++;
-        addChild(&parent, branches.size() - 1);
+
+      auto  randomness = rand3f(rng);
+      vec3f norm       = normalize(parent.direction * (randomness)) *
+                   params.branch_strictness;
+      vec3f cur_start = parent.end;
+      int   forks     = 0;
+      // trovo i punti vicini
+      auto sum = zero3f;
+      for (int i = crown_points.size() - 1; i >= 0; i--) {
+        auto p                            = crown_points[i];
+        auto dist                         = distance(p, cur_start);
+        auto curstart_to_p                = normalize(p - cur_start);
+        auto dot_curdirection_curstarttop = dot(
+            curstart_to_p, parent.direction);
+        if (dist < params.range &&
+            dot_curdirection_curstarttop > params.ignore_points_behind) {
+          sum += curstart_to_p;
+          if (dist < params.kill_range) {
+            crown_points.erase(crown_points.begin() + i);
+            forks++;
+          }
+        }
       }
+      norm = normalize((norm + sum));
+      if (forks > 0) {
+        if (rand1f(rng) < params.fork_chance) {
+          auto fork_norm = normalize(
+              reflect(parent.direction, norm) * rand3f(rng));
+          struct Branch fork_branch;
+          fork_norm     = normalize(norm - vec3f{0, params.gravity, 0});
+          auto fork_end = cur_start + fork_norm * params.step_len;
+          init_branch(&fork_branch, cur_start, fork_end, fork_norm, queue_start,
+              parent.thickness * params.division_thickness_decrease);
+          branches.push_back(fork_branch);
+
+          auto cil = make_uvcylinder(
+              vec3i{BRANCH_FACES, BRANCH_FACES, BRANCH_FACES},
+              vec2f{fork_branch.thickness, params.step_len / 2},
+              vec3f{(1), (1), (1)});
+          // bark_noise(cil, parent.start);
+          scene.shapes.push_back(cil);
+          draw_branch(
+              scene, &fork_branch, scene.shapes.size() - 1, material_index);
+          division_flag++;
+          addChild(&parent, branches.size() - 1);
+        }
+      }
+      //  cercolo il punto finale del branch
+      norm          = normalize(norm - vec3f{0, params.gravity, 0});
+      vec3f cur_end = cur_start + norm * params.step_len;
+
+      init_branch(&current, cur_start, cur_end, norm, queue_start,
+          parent.thickness * params.main_thickness_decrease);
+      auto cil = make_uvcylinder(
+          vec3i{BRANCH_FACES, BRANCH_FACES, BRANCH_FACES},
+          vec2f{current.thickness, params.step_len / 2}, vec3f{(1), (1), (1)});
+      // bark_noise(cil, parent.end);
+      scene.shapes.push_back(cil);
+      branches.push_back(current);
+      queue_start++;
+
+      draw_branch(scene, &current, scene.shapes.size() - 1, material_index);
+      addChild(&parent, branches.size() - 1);
     }
-    //  cercolo il punto finale del branch
-    vec3f cur_end = cur_start + norm * params.step_len;
-
-    // std::cout << norm.x << " " << norm.y << " " << norm.z << " " <<
-    // std::endl;
-    init_branch(&current, cur_start, cur_end, norm, queue_start,
-        parent.thickness * params.thickness_decrease);
-    branches.push_back(current);
-    queue_start++;
-
-    draw_branch(scene, &current, cilinder_index, material_index);
-    addChild(&parent, branches.size() - 1);
+  } catch (std::bad_alloc& exception) {
+    std::cout << "Bad Alloc!!!!" << std::endl;
+    std::cout << "Queue start " << queue_start << std::endl;
+    std::cout << "Size " << branches.size() << std::endl;
   }
 
-  for (auto& el : crown_points) {
-    instance_data new_point;
-    new_point.shape    = sphere_shape_idx;
-    new_point.material = sphere_material_idx;
-    new_point.frame    = frame3f{{1, 0, 0}, {0, 1, 0}, {0, 0, 1}, el};
-    scene.instances.push_back(new_point);
+  // mostra i punti della chioma
+  if (params.shaow_crown_points) {
+    for (auto& el : crown_points) {
+      instance_data new_point;
+      new_point.shape    = sphere_shape_idx;
+      new_point.material = sphere_material_idx;
+      new_point.frame    = frame3f{{1, 0, 0}, {0, 1, 0}, {0, 0, 1}, el};
+      scene.instances.push_back(new_point);
+    }
   }
 
-  material_data ray_sphere;
-  ray_sphere.color = {0.8, 0.8, 0.8};
-  ray_sphere.type  = material_type::transparent;
-  scene.materials.push_back(ray_sphere);
-  auto          ray_sphere_index = scene.materials.size() - 1;
-  instance_data new_ray_sphere;
-  new_ray_sphere.frame = frame3f{
-      {1, 0, 0}, {0, 1, 0}, {0, 0, 1}, branches.back().end};
-  new_ray_sphere.material = ray_sphere_index;
-  auto ray_sphere_sh      = make_sphere(32, params.range);
-  scene.shapes.push_back(ray_sphere_sh);
-  new_ray_sphere.shape = scene.shapes.size() - 1;
-  scene.instances.push_back(new_ray_sphere);
+  // mostra la grandezza della sfera di attrazione
+  if (params.show_range) {
+    material_data ray_sphere;
+    ray_sphere.color = {0.8, 0.8, 0.8};
+    ray_sphere.type  = material_type::transparent;
+    scene.materials.push_back(ray_sphere);
+    auto          ray_sphere_index = scene.materials.size() - 1;
+    instance_data new_ray_sphere;
+    new_ray_sphere.frame = frame3f{
+        {1, 0, 0}, {0, 1, 0}, {0, 0, 1}, branches.back().end};
+    new_ray_sphere.material = ray_sphere_index;
+    auto ray_sphere_sh      = make_sphere(32, params.range);
+    scene.shapes.push_back(ray_sphere_sh);
+    new_ray_sphere.shape = scene.shapes.size() - 1;
+    scene.instances.push_back(new_ray_sphere);
+  }
+  std::cout << "Done!" << std::endl;
 }
 
 }  // namespace yocto

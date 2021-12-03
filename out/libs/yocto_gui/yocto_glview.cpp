@@ -43,6 +43,7 @@
 #endif
 #include <GLFW/glfw3.h>
 
+#include "../libs/yocto_model/yocto_model.h"
 #include "ext/imgui/imgui.h"
 #include "ext/imgui/imgui_impl_glfw.h"
 #include "ext/imgui/imgui_impl_opengl3.h"
@@ -138,6 +139,28 @@ static bool draw_image_inspector(const glinput_state& input,
     }
     draw_glcoloredit("image", image_pixel);
     draw_glcoloredit("display", display_pixel);
+    ///////////////
+    auto treeparams = tree_params{};
+    draw_glslider("step_len", glparams.step_len, 0.001, 0.1);
+    draw_glslider("range", glparams.range, 0.003, 0.5);
+    draw_glslider("kill_range", glparams.kill_range, 0.003, 0.5);
+    draw_glslider("crown_radius", glparams.crown_radius, 0.1, 1);
+    draw_glslider("crown_height", glparams.crown_height, 0.001, 1);
+    draw_glslider(
+        "crown_points_distance", glparams.crown_points_distance, 0.1, 1);
+    draw_glslider("leaves_num", glparams.leaves_num, 100, 1000);
+    draw_glslider("steps", glparams.steps, 1, 4000);
+    draw_glslider("fork_chance", glparams.fork_chance, 0.0, 1.0);
+    draw_glslider("thickness", glparams.thickness, 0.001, 0.1);
+    draw_glslider(
+        "main_thickness_decrease", glparams.main_thickness_decrease, 0.0, 0.9);
+    draw_glslider("division_thickness_decrease",
+        glparams.division_thickness_decrease, 0.0, 0.9);
+    draw_glslider(
+        "ignore_points_behind", glparams.ignore_points_behind, -1.0, 1.0);
+    draw_glslider("branch_strictness", glparams.branch_strictness, 0.0, 100);
+    draw_glslider("gravity", glparams.gravity, 0.0, 10);
+    //////
     end_glheader();
   }
   return false;

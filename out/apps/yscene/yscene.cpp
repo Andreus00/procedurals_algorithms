@@ -278,6 +278,7 @@ void add_options(const cli_command& cli, view_params& params) {
       cli, "highqualitybvh", params.highqualitybvh, "Use high quality BVH.");
   add_option(cli, "exposure", params.exposure, "Exposure value.");
   add_option(cli, "filmic", params.filmic, "Filmic tone mapping.");
+  add_option(cli, "filmic", params.filmic, "Filmic tone mapping.");
   add_option(cli, "noparallel", params.noparallel, "Disable threading.");
 }
 
@@ -290,6 +291,42 @@ void run_view(const view_params& params) { print_fatal("Opengl not compiled"); }
 
 // view scene
 void run_view(const view_params& params_) {
+  // copy params
+  auto params = params_;
+
+  // load scene
+  auto error = string{};
+  print_progress_begin("load scene");
+  auto scene = scene_data{};
+  if (!load_scene(params.scene, scene, error)) print_fatal(error);
+  print_progress_end();
+
+  // add sky
+  if (params.addsky) add_sky(scene);
+
+  // add environment
+  if (!params.envname.empty()) {
+    print_progress_begin("add environment");
+    add_environment(scene, params.envname);
+    print_progress_end();
+  }
+
+  // tesselation
+  if (!scene.subdivs.empty()) {
+    print_progress_begin("tesselate subdivs");
+    tesselate_subdivs(scene);
+    print_progress_end();
+  }
+
+  // find camera
+  params.camera = find_camera(scene, params.camname);
+
+  // run view
+  view_scene("yscene", params.scene, scene, params);
+}
+
+// view scene
+void run_interctive_view(const view_params& params_) {
   // copy params
   auto params = params_;
 

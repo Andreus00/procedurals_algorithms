@@ -131,6 +131,22 @@ struct glimage_params {
   bool  checker     = true;
   float border_size = 2;
   vec4f background  = {0.15f, 0.15f, 0.15f, 1.0f};
+  // tree params
+  float step_len                    = 0.02;  // len of each step of the segments
+  float range                       = 0.1f;  // attraction range
+  float kill_range                  = 0.08f;
+  float crown_radius                = 0.4f;  // radius of the crown
+  float crown_height                = 0.8f;  // height of the crown
+  float crown_points_distance       = 0.1;
+  float leaves_num                  = 400;  // number of points of the crown
+  int   steps                       = 300;
+  float fork_chance                 = 0.5f;
+  float thickness                   = 0.03;
+  float main_thickness_decrease     = 0.99;
+  float division_thickness_decrease = 0.75;
+  float ignore_points_behind        = -0.2;
+  float branch_strictness           = 1.0;
+  float gravity                     = 0.0;
 };
 
 // draw image

@@ -29,8 +29,8 @@
 # ./bin/ymodel --scene tests/05_tree/tree.json --output outs/05_tree/tree.json --tree --brsteps 50000
 # ./bin/yscene render outs/05_tree/tree.json --output out/05_tree.jpg --samples 2 --resolution 720
 
-./bin/ymodel --scene tests/05_tree/tree.json --output outs/05_tree/tree.json --tree --brsteps 300
-./bin/yscene view outs/05_tree/tree.json --output out/05_tree.jpg --samples 2 --resolution 720
+./bin/ymodel --scene tests/05_tree/tree.json --output outs/05_tree/tree.json --tree --brsteps 2000
+./bin/yscene view outs/05_tree/tree.json --output out/05_tree.jpg --samples 25 --resolution 720
 
 # ./bin/ymodel --scene tests/05_tree/tree.json --output outs/05_tree/tree.json --tree --brsteps 5000
 # ./bin/yscene view outs/05_tree/tree.json --output out/05_tree.jpg --samples 2 --resolution 720
