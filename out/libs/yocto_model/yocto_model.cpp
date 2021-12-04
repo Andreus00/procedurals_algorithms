@@ -921,4 +921,36 @@ void generate_tree(scene_data& scene, const vec3f start, const vec3f norm,
   std::cout << "Done!" << std::endl;
 }
 
+void make_woods(
+    scene_data& scene, const instance_data& object, const int tree_num) {
+  vector<vec3f> positions;
+  vector<vec3f> normals;
+  vector<vec2f> texcoords;
+  auto          rng = rng_state(1234, 890);
+  sample_shape(
+      positions, normals, texcoords, scene.shapes[object.shape], tree_num * 5);
+  sample_elimination(positions, normals, texcoords, 0.5f, 1.0f, tree_num);
+  for (int i = 0; i < tree_num; i++) {
+    auto tpar                        = tree_params{};
+    tpar.step_len                    = 0.004;
+    tpar.range                       = 0.01;  // attraction range
+    tpar.kill_range                  = 0.009f;
+    tpar.crown_radius                = 0.05f;  // radius of the crown
+    tpar.crown_height                = 0.09f;  // height of the crown
+    tpar.crown_points_distance       = 0.003;
+    tpar.crown_points_num            = 1000;  // number of points of the crown
+    tpar.steps                       = 600;
+    tpar.fork_chance                 = 0.7f;
+    tpar.thickness                   = 0.003;
+    tpar.main_thickness_decrease     = 0.99;
+    tpar.division_thickness_decrease = 0.75;
+    tpar.ignore_points_behind        = -0.5;
+    tpar.branch_strictness           = 1.0;
+    tpar.gravity                     = 0.0;
+    tpar.shaow_crown_points          = false;
+    tpar.show_range                  = true;
+    generate_tree(scene, positions[i], normals[i], tpar);
+  }
+}
+
 }  // namespace yocto

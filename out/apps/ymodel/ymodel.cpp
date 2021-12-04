@@ -67,6 +67,7 @@ void run(const vector<string>& args) {
   auto cell_size          = 0.005f;
   auto tree               = false;
   auto trparams           = tree_params{};
+  auto woods              = 0;
 
   // parse command line
   auto error = string{};
@@ -97,6 +98,7 @@ void run(const vector<string>& args) {
   add_option(cli, "cell_size", cell_size, "cell_size for sample elimination");
   add_option(cli, "tree", tree, "tree");
   add_option(cli, "brsteps", trparams.steps, "number of steps");
+  add_option(cli, "woods", woods, "make woods");
   if (!parse_cli(cli, args, error)) print_fatal(error);
 
   // load scene
@@ -108,6 +110,9 @@ void run(const vector<string>& args) {
 
   if (cell_size != 0.005) hparams.cell_size = cell_size;
   // create procedural geometry
+  if (woods) {
+    make_woods(scene, get_instance(scene, grassbase), woods);
+  }
   if (tree) {
     generate_tree(scene, {0, 0, 0},
         {
