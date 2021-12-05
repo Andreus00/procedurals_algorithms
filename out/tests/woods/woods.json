@@ -152,24 +152,24 @@
     },
     {
       "name": "plane",
-      "uri": "shapes/floor.ply"
+      "uri": "shapes/plane.ply"
     }
   ],
   "instances": [
     {
       "name": "object",
       "frame": [
-        0.1,
+        1,
         0,
         0,
         0,
-        0.1,
+        1,
         0,
         0,
         0,
-        0.1,
+        1,
         0,
-        0.02,
+        0,
         0
       ],
       "shape": 11,
