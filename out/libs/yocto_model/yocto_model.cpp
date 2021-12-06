@@ -692,10 +692,8 @@ void make_grass(scene_data& scene, const instance_data& object,
 void addChild(struct Branch* parent, int child) {
   parent->_children.push_back(child);
 }
-vector<int>   getChildren(struct Branch* parent) { return parent->_children; }
-vector<vec3f> getAttractors(struct Branch* parent) {
-  return parent->_attractors;
-}
+vector<int> getChildren(struct Branch* parent) { return parent->_children; }
+vector<int> getAttractors(struct Branch* parent) { return parent->_attractors; }
 
 void init_branch(struct Branch* b, vec3f start, vec3f end, vec3f direction,
     int parent, float thickness) {
@@ -815,7 +813,7 @@ void generate_tree(scene_data& scene, const vec3f start, const vec3f norm,
       struct Branch current;
       struct Branch parent = branches[queue_start];
       if (queue_start > branches.size() - 1 || crown_points.size() == 0) break;
-      if (division_flag > 2) {
+      if (division_flag > 1) {
         if (!is_in_range(parent.start, params.step_len, params.crown_radius,
                 first_branch.start, params.crown_height)) {
           queue_start++;
@@ -893,7 +891,7 @@ void generate_tree(scene_data& scene, const vec3f start, const vec3f norm,
   }
 
   // mostra i punti della chioma
-  if (params.shaow_crown_points) {
+  if (params.show_crown_points) {
     for (auto& el : crown_points) {
       instance_data new_point;
       new_point.shape    = sphere_shape_idx;
@@ -930,29 +928,154 @@ void make_woods(
   auto          rng = rng_state(1234, 789);
   sample_shape(
       positions, normals, texcoords, scene.shapes[object.shape], tree_num * 5);
-  sample_elimination(positions, normals, texcoords, 0.5f, 0.1f, tree_num);
+  sample_elimination(positions, normals, texcoords, 0.5f, 0.4f, tree_num);
   auto tpar                        = tree_params{};
-  tpar.step_len                    = 0.003;
-  tpar.range                       = 0.015;  // attraction range
-  tpar.kill_range                  = 0.014f;
-  tpar.crown_radius                = 0.04f;  // radius of the crown
-  tpar.crown_height                = 0.06f;  // height of the crown
+  tpar.step_len                    = 0.005;
+  tpar.range                       = 0.01;  // attraction range
+  tpar.kill_range                  = 0.009f;
+  tpar.crown_radius                = 0.05f;  // radius of the crown
+  tpar.crown_height                = 0.09f;  // height of the crown
   tpar.crown_points_distance       = 0.003;
-  tpar.crown_points_num            = 1000;  // number of points of the crown
-  tpar.steps                       = 5000;
-  tpar.fork_chance                 = 0.9;
-  tpar.thickness                   = 0.0017;
-  tpar.main_thickness_decrease     = 0.99;
+  tpar.crown_points_num            = 700;  // number of points of the crown
+  tpar.steps                       = 400;
+  tpar.fork_chance                 = 0.7f;
+  tpar.thickness                   = 0.003;
+  tpar.main_thickness_decrease     = 0.95;
   tpar.division_thickness_decrease = 0.75;
-  tpar.ignore_points_behind        = -0.5;
+  tpar.ignore_points_behind        = -0.7;
   tpar.branch_strictness           = 1.0;
-  tpar.gravity                     = 0.3;
-  tpar.shaow_crown_points          = false;
+  tpar.gravity                     = 0.0;
+  tpar.show_crown_points           = false;
   tpar.show_range                  = false;
   for (int i = 0; i < tree_num; i++) {
-    generate_tree(
-        scene, positions[i], normals[i], tpar, rand1i(rng, 876543678));
+    generate_tree(scene, positions[i], normals[i], tpar, rand1f(rng));
   }
 }
+
+/////////////////////////////////////////
+
+struct attractor {
+  int   attractor_idx;
+  int   branch_idx;
+  float distance;
+};
+
+void generate_tree_2(scene_data& scene, const vec3f start, const vec3f norm,
+    const tree_params& params) {
+  const int BRANCH_FACES = 16;
+
+  auto rng = make_rng(424242);
+  // create the first branch
+  struct Branch first_branch;
+  init_branch(&first_branch, start, start + norm * params.step_len, norm, 0,
+      params.thickness);
+  // sampling the points for the crown of the tree
+  vector<vec3f> crown_points;
+  crown_points_distribution(&crown_points, first_branch.start,
+      params.crown_radius, params.crown_points_num * 4, params.crown_height);
+
+  // Useless vecors. I need them for the sample elimination call.
+  vector<vec3f> normals(params.crown_points_num * 4, zero3f);
+  vector<vec2f> texcoord(params.crown_points_num * 4, zero2f);
+  sample_elimination(crown_points, normals, texcoord,
+      params.crown_points_distance * 0.4, params.crown_points_distance * 0.8,
+      params.crown_points_num);
+
+  // draw the points for the visualization
+  auto          sphere = make_sphere(32, 0.01f);
+  material_data sphere_material;
+  sphere_material.color = {1, 0, 0};
+  sphere_material.type  = material_type::matte;
+  auto sphere_shape_idx = scene.shapes.size();
+  scene.shapes.push_back(sphere);
+  auto sphere_material_idx = scene.materials.size();
+  scene.materials.push_back(sphere_material);
+
+  // simulate the growth of the tree
+
+  // create the cilinder
+  auto cilinder = make_uvcylinder(
+      vec3i{BRANCH_FACES, BRANCH_FACES, BRANCH_FACES},
+      vec2f{params.thickness, params.step_len / 2}, vec3f{(1), (1), (1)});
+
+  scene.shapes.push_back(cilinder);
+  auto cilinder_index = scene.shapes.size() - 1;
+
+  material_data segment_material;
+  segment_material.color = {0.4, 0.1, 0.0};
+  segment_material.type  = material_type::matte;
+  scene.materials.push_back(segment_material);
+  auto material_index = scene.materials.size() - 1;
+
+  auto initial_shape_number = scene.shapes.size() - 1;
+
+  vector<struct Branch> branches;
+  branches.push_back(first_branch);
+  int queue_start   = 0;
+  int division_flag = 0;
+
+  while (!crown_points.empty()) {
+    // calcolo gli attraction points
+    auto        point_num = 0;
+    vector<int> active_branches;
+    for (int i = 0; i < crown_points.size(); i++) {
+      auto  attr     = crown_points[i];
+      auto  min_idx  = -1;
+      float min_dist = INFINITY;
+      for (int j = 0; j < branches.size(); j++) {
+        auto branch = branches[j];
+        auto d      = distance(branch.end, attr);
+        if (d <= params.range && d < min_dist) {
+          min_dist = d;
+          min_idx  = j;
+        }
+      }
+      if (min_idx != -1) {
+        branches[min_idx]._attractors.push_back(i);
+        active_branches.push_back(min_idx);
+        point_num++;
+      }
+    }
+    if (point_num == 0) break;
+    for (auto& idx : active_branches) {
+      // calcolo la nuova direzione
+      auto  branch    = branches[idx];
+      vec3f direction = zero3f;
+      for (auto& el : branch._attractors) {
+        direction += 1;  // todo
+      }
+    }
+  }
+
+  // mostra i punti della chioma
+  if (params.show_crown_points) {
+    for (auto& el : crown_points) {
+      instance_data new_point;
+      new_point.shape    = sphere_shape_idx;
+      new_point.material = sphere_material_idx;
+      new_point.frame    = frame3f{{1, 0, 0}, {0, 1, 0}, {0, 0, 1}, el};
+      scene.instances.push_back(new_point);
+    }
+  }
+
+  // mostra la grandezza della sfera di attrazione
+  if (params.show_range) {
+    material_data ray_sphere;
+    ray_sphere.color = {0.8, 0.8, 0.8};
+    ray_sphere.type  = material_type::transparent;
+    scene.materials.push_back(ray_sphere);
+    auto          ray_sphere_index = scene.materials.size() - 1;
+    instance_data new_ray_sphere;
+    new_ray_sphere.frame = frame3f{
+        {1, 0, 0}, {0, 1, 0}, {0, 0, 1}, branches.back().end};
+    new_ray_sphere.material = ray_sphere_index;
+    auto ray_sphere_sh      = make_sphere(32, params.range);
+    scene.shapes.push_back(ray_sphere_sh);
+    new_ray_sphere.shape = scene.shapes.size() - 1;
+    scene.instances.push_back(new_ray_sphere);
+  }
+  std::cout << "Done!" << std::endl;
+}
+/////////////////////////////////////////////////
 
 }  // namespace yocto

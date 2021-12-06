@@ -48,6 +48,10 @@
     {
       "name": "density_map",
       "uri": "textures/density_map_3.png"
+    },
+    {
+      "name": "beard",
+      "uri": "textures/bunny_beard.png"
     }
   ],
   "materials": [
@@ -70,7 +74,7 @@
       ],
       "roughness": 0.2,
       "type": "matte",
-      "color_tex": 2
+      "color_tex": 3
     },
     {
       "name": "hair",
@@ -108,7 +112,7 @@
     },
     {
       "name": "sphere",
-      "uri": "shapes/sphere.ply"
+      "uri": "shapes/bunny.ply"
     },
     {
       "name": "placeholder",

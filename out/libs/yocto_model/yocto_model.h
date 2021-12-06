@@ -132,12 +132,12 @@ struct Branch {
 
   vector<int> _children;
 
-  vector<vec3f> _attractors;
+  vector<int> _attractors;
 };
 
-void          addChild(struct Branch* parent, int child);
-vector<int>   getChildren(struct Branch* parent);
-vector<vec3f> getAttractors(struct Branch* parent);
+void        addChild(struct Branch* parent, int child);
+vector<int> getChildren(struct Branch* parent);
+vector<int> getAttractors(struct Branch* parent);
 
 void init_branch(
     struct Branch* b, vec3f start, vec3f end, vec3f direction, int parent);
@@ -158,7 +158,7 @@ struct tree_params {
   float ignore_points_behind        = -0.5;
   float branch_strictness           = 1.0;
   float gravity                     = 0.0;
-  bool  shaow_crown_points          = false;
+  bool  show_crown_points           = false;
   bool  show_range                  = false;
 };
 

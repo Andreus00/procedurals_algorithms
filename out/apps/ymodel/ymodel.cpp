@@ -98,6 +98,34 @@ void run(const vector<string>& args) {
   add_option(cli, "cell_size", cell_size, "cell_size for sample elimination");
   add_option(cli, "tree", tree, "tree");
   add_option(cli, "brsteps", trparams.steps, "number of steps");
+  add_option(cli, "step_len", trparams.step_len, "Step len");
+  add_option(cli, "range", trparams.range, "Range");
+  add_option(cli, "kill_range", trparams.kill_range, "Kill range");
+  add_option(
+      cli, "crown_radius", trparams.crown_radius, "Randius of the crown");
+  add_option(cli, "crown_height", trparams.crown_height,
+      "Height of the crown of the tree");
+  add_option(cli, "crown_points_distance", trparams.crown_points_distance,
+      "Distance used for the sample elimination of the attraction points");
+  add_option(cli, "crown_points_num", trparams.crown_points_num,
+      "Number of attraction points of the tree's crown");
+  add_option(cli, "steps", trparams.steps, "Number of steps");
+  add_option(cli, "fork_chance", trparams.fork_chance,
+      "chance of a branch to fork when one or more attraction poits are deleted.");
+  add_option(cli, "thickness", trparams.thickness, "thickness of the branch");
+  add_option(cli, "main_thickness_decrease", trparams.main_thickness_decrease,
+      "Decrease of the main branch");
+  add_option(cli, "division_thickness_decrease",
+      trparams.division_thickness_decrease,
+      "Decrease of the thickness when the branch is divided");
+  add_option(cli, "ignore_points_behind", trparams.ignore_points_behind,
+      "Value from -1 to 1. it affects when an attraction point is ignored, based on his direction.");
+  add_option(cli, "branch_strictness", trparams.branch_strictness,
+      "This parameter modifies how much the direction of the branch parent affects the direction of the branch son");
+  add_option(
+      cli, "gravity", trparams.gravity, "Gravity that influences the tree");
+  add_option(cli, "show_crown_points", trparams.show_crown_points,
+      "Show the attraction points");
   add_option(cli, "woods", woods, "make woods");
   if (!parse_cli(cli, args, error)) print_fatal(error);
 
