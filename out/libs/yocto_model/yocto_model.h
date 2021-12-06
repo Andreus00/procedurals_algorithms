@@ -163,7 +163,7 @@ struct tree_params {
 };
 
 void generate_tree(scene_data& scene, const vec3f start, const vec3f norm,
-    const tree_params& params);
+    const tree_params& params, int rng_seed);
 void make_woods(
     scene_data& scene, const instance_data& object, const int tree_num);
 }  // namespace yocto

@@ -44,5 +44,5 @@
 # ./bin/ymodel --scene tests/05_tree/tree.json --output outs/05_tree/tree.json --tree --brsteps 90000
 # ./bin/yscene render outs/05_tree/tree.json --output out/05_tree.jpg --samples 2 --resolution 720
 
-./bin/ymodel --scene tests/woods/woods.json --output outs/woods/woods.json --grassbase object --woods 30
+./bin/ymodel --scene tests/woods/woods.json --output outs/woods/woods.json --grassbase object --woods 3
 ./bin/yscene view outs/woods/woods.json --output out/woods.jpg --samples 25 --resolution 720 --bounces 128

@@ -718,8 +718,8 @@ void draw_branch(scene_data& scene, struct Branch* b, int shape, int material) {
 }
 
 void crown_points_distribution(vector<vec3f>* out, vec3f base,
-    float crown_radius, int number, float height) {
-  auto rng = make_rng(678);
+    float crown_radius, int number, float height, int rng_seed = 678) {
+  auto rng = make_rng(rng_seed);
   for (int i = 0; i < number; i++) {
     vec3f rand = rand3f(rng);
     vec3f D    = {cos(rand[0] * 2.0f * pif) * sin(rand[1] * 2.0f * pif),
@@ -754,10 +754,10 @@ void bark_noise(shape_data& cil, vec3f start) {
 }
 
 void generate_tree(scene_data& scene, const vec3f start, const vec3f norm,
-    const tree_params& params) {
+    const tree_params& params, int rng_seed) {
   const int BRANCH_FACES = 16;
 
-  auto rng = make_rng(424242);
+  auto rng = make_rng(rng_seed);
   // create the first branch
   struct Branch first_branch;
   init_branch(&first_branch, start, start + norm * params.step_len, norm, 0,
@@ -765,7 +765,8 @@ void generate_tree(scene_data& scene, const vec3f start, const vec3f norm,
   // sampling the points for the crown of the tree
   vector<vec3f> crown_points;
   crown_points_distribution(&crown_points, first_branch.start,
-      params.crown_radius, params.crown_points_num * 4, params.crown_height);
+      params.crown_radius, params.crown_points_num * 4, params.crown_height,
+      rand1i(rng, 20349348));
 
   // Useless vecors. I need them for the sample elimination call.
   vector<vec3f> normals(params.crown_points_num * 4, zero3f);
@@ -926,30 +927,31 @@ void make_woods(
   vector<vec3f> positions;
   vector<vec3f> normals;
   vector<vec2f> texcoords;
-  auto          rng = rng_state(1234, 890);
+  auto          rng = rng_state(1234, 789);
   sample_shape(
       positions, normals, texcoords, scene.shapes[object.shape], tree_num * 5);
-  sample_elimination(positions, normals, texcoords, 0.5f, 1.0f, tree_num);
+  sample_elimination(positions, normals, texcoords, 0.5f, 0.1f, tree_num);
+  auto tpar                        = tree_params{};
+  tpar.step_len                    = 0.003;
+  tpar.range                       = 0.015;  // attraction range
+  tpar.kill_range                  = 0.014f;
+  tpar.crown_radius                = 0.04f;  // radius of the crown
+  tpar.crown_height                = 0.06f;  // height of the crown
+  tpar.crown_points_distance       = 0.003;
+  tpar.crown_points_num            = 1000;  // number of points of the crown
+  tpar.steps                       = 5000;
+  tpar.fork_chance                 = 0.9;
+  tpar.thickness                   = 0.0017;
+  tpar.main_thickness_decrease     = 0.99;
+  tpar.division_thickness_decrease = 0.75;
+  tpar.ignore_points_behind        = -0.5;
+  tpar.branch_strictness           = 1.0;
+  tpar.gravity                     = 0.3;
+  tpar.shaow_crown_points          = false;
+  tpar.show_range                  = false;
   for (int i = 0; i < tree_num; i++) {
-    auto tpar                        = tree_params{};
-    tpar.step_len                    = 0.004;
-    tpar.range                       = 0.01;  // attraction range
-    tpar.kill_range                  = 0.009f;
-    tpar.crown_radius                = 0.05f;  // radius of the crown
-    tpar.crown_height                = 0.09f;  // height of the crown
-    tpar.crown_points_distance       = 0.003;
-    tpar.crown_points_num            = 1000;  // number of points of the crown
-    tpar.steps                       = 600;
-    tpar.fork_chance                 = 0.7f;
-    tpar.thickness                   = 0.003;
-    tpar.main_thickness_decrease     = 0.99;
-    tpar.division_thickness_decrease = 0.75;
-    tpar.ignore_points_behind        = -0.5;
-    tpar.branch_strictness           = 1.0;
-    tpar.gravity                     = 0.0;
-    tpar.shaow_crown_points          = false;
-    tpar.show_range                  = true;
-    generate_tree(scene, positions[i], normals[i], tpar);
+    generate_tree(
+        scene, positions[i], normals[i], tpar, rand1i(rng, 876543678));
   }
 }
 

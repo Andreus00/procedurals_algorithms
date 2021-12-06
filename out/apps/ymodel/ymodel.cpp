@@ -120,7 +120,7 @@ void run(const vector<string>& args) {
             1,
             0,
         },
-        trparams);
+        trparams, 1234);
   }
   if (terrain != "") {
     make_terrain(scene.shapes[get_instance(scene, terrain).shape], tparams);
