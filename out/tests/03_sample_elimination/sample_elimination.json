@@ -105,8 +105,8 @@
       "uri": "shapes/floor.ply"
     },
     {
-      "name": "bunny",
-      "uri": "shapes/quady-displaced.ply"
+      "name": "quady",
+      "uri": "shapes/sphere.ply"
     },
     {
       "name": "placeholder",

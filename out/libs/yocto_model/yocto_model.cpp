@@ -959,12 +959,11 @@ struct attractor {
   int   branch_idx;
   float distance;
 };
-
 void generate_tree_2(scene_data& scene, const vec3f start, const vec3f norm,
-    const tree_params& params) {
+    const tree_params& params, int seed) {
   const int BRANCH_FACES = 16;
 
-  auto rng = make_rng(424242);
+  auto rng = make_rng(seed);
   // create the first branch
   struct Branch first_branch;
   init_branch(&first_branch, start, start + norm * params.step_len, norm, 0,
@@ -1011,10 +1010,9 @@ void generate_tree_2(scene_data& scene, const vec3f start, const vec3f norm,
 
   vector<struct Branch> branches;
   branches.push_back(first_branch);
-  int queue_start   = 0;
-  int division_flag = 0;
-
-  while (!crown_points.empty()) {
+  int queue_start = 0;
+  int steps       = 0;
+  while (!crown_points.empty() && steps < params.steps) {
     // calcolo gli attraction points
     auto        point_num = 0;
     vector<int> active_branches;
@@ -1033,18 +1031,32 @@ void generate_tree_2(scene_data& scene, const vec3f start, const vec3f norm,
       if (min_idx != -1) {
         branches[min_idx]._attractors.push_back(i);
         active_branches.push_back(min_idx);
+
+        std::cout << min_idx << std::endl;
         point_num++;
       }
     }
     if (point_num == 0) break;
     for (auto& idx : active_branches) {
       // calcolo la nuova direzione
-      auto  branch    = branches[idx];
+      auto branch = branches[idx];
+
+      // std::cout << branch._attractors.size() << std::endl;
       vec3f direction = zero3f;
-      for (auto& el : branch._attractors) {
-        direction += 1;  // todo
+      for (auto& attr : branch._attractors) {
+        direction += normalize(crown_points[attr] - branch.end);
       }
+      direction = normalize(direction);
+
+      std::cout << direction.y << std::endl;
+      branches[idx]._attractors.clear();
+      struct Branch new_branch;
+      init_branch(&branch, branch.end, branch.end + direction * params.step_len,
+          direction, idx, branch.thickness * params.main_thickness_decrease);
+      draw_branch(scene, &new_branch, cilinder_index, material_index);
+      branches.push_back(new_branch);
     }
+    steps++;
   }
 
   // mostra i punti della chioma

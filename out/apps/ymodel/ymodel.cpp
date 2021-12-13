@@ -66,6 +66,7 @@ void run(const vector<string>& args) {
   auto influence_radius   = 0.005f;
   auto cell_size          = 0.005f;
   auto tree               = false;
+  auto tree_2             = false;
   auto trparams           = tree_params{};
   auto woods              = 0;
 
@@ -97,6 +98,7 @@ void run(const vector<string>& args) {
       "influence_radius for sample elimination");
   add_option(cli, "cell_size", cell_size, "cell_size for sample elimination");
   add_option(cli, "tree", tree, "tree");
+  add_option(cli, "tree_2", tree_2, "tree_2");
   add_option(cli, "brsteps", trparams.steps, "number of steps");
   add_option(cli, "step_len", trparams.step_len, "Step len");
   add_option(cli, "range", trparams.range, "Range");
@@ -143,6 +145,15 @@ void run(const vector<string>& args) {
   }
   if (tree) {
     generate_tree(scene, {0, 0, 0},
+        {
+            0,
+            1,
+            0,
+        },
+        trparams, 1234);
+  }
+  if (tree_2) {
+    generate_tree_2(scene, {0, 0, 0},
         {
             0,
             1,

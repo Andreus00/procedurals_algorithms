@@ -18,8 +18,8 @@
 # ./bin/ymodel --scene tests/03_sample_elimination/sample_elimination.json --output outs/03_hair2/hair2.json --hairbase object --hair hair --hairlen 0.001 --hairstr 0.00000000001 --hairnum 2000
 # ./bin/yscene render outs/03_hair2/hair2.json --output out/03_hair2_normal_2000.jpg --samples 60 --resolution 720
 
-# ./bin/ymodel --scene tests/03_sample_elimination/sample_elimination.json --output outs/03_hair2/hair2.json --hairbase object --hair hair --hairlen 0.001 --hairstr 0.00000000001 --hairnum 100000 --sample_elimination --influence_radius 0.001 --cell_size 0.005
-# ./bin/yscene render outs/03_hair2/hair2.json --output out/03_hair2_sample_elimination_100000-0_01r-0_05c.jpg --samples 60 --resolution 720
+# ./bin/ymodel --scene tests/03_sample_elimination/sample_elimination.json --output outs/03_hair2/hair2.json --hairbase object --hair hair --hairlen 0.001 --hairstr 0.00000000001 --hairnum 2000 --sample_elimination --influence_radius 0.01 --cell_size 0.005
+# ./bin/yscene render outs/03_hair2/hair2.json --output out/03_hair2_sample_elimination_sphere_2000-0_01r-0_05c.jpg --samples 60 --resolution 720
 
 # for i in 100 300 500 800 1000 1500 2000; do
 #     ./bin/ymodel --scene tests/05_tree/tree.json --output outs/05_tree/tree.json --tree --brsteps $i
@@ -27,7 +27,7 @@
 # done
 
 # for i in 4000; do
-#     ./bin/ymodel --scene tests/05_tree/tree.json --output outs/05_tree/tree.json --tree --brsteps $i --crown_points_num 500 --fork_chance 0.7 --fork_chance 0.8 --ignore_points_behind 0.3 --range 0.1 --kill_range 0.1  --gravity 0.1
+#     ./bin/ymodel --scene tests/05_tree/tree.json --output outs/05_tree/tree.json --tree --brsteps $i --crown_points_num 500 --fork_chance 0.7 --fork_chance 0.8 --ignore_points_behind 0.3 --range 0.1 --kill_range 0.1
 #     ./bin/yscene render outs/05_tree/tree.json --output out/05_tree_test_3.jpg --samples 25 --resolution 720
 # done
 
@@ -49,10 +49,11 @@
 # ./bin/ymodel --scene tests/05_tree/tree.json --output outs/05_tree/tree.json --tree --brsteps 90000
 # ./bin/yscene render outs/05_tree/tree.json --output out/05_tree.jpg --samples 2 --resolution 720
 
-<<<<<<< HEAD
-./bin/ymodel --scene tests/woods/woods.json --output outs/woods/woods.json --grassbase object --woods 3
-./bin/yscene view outs/woods/woods.json --output out/woods.jpg --samples 25 --resolution 720 --bounces 128
-=======
 # ./bin/ymodel --scene tests/woods/woods.json --output outs/woods/woods.json --grassbase object --woods 30
 # ./bin/yscene view outs/woods/woods.json --output out/woods.jpg --samples 25 --resolution 720 --bounces 128
->>>>>>> 925ec9e60c162e35dd080bb2222773b31e883d43
+
+############# tree 2
+for i in 100; do
+    ./bin/ymodel --scene tests/05_tree_2/tree.json --output outs/05_tree_2/tree_2.json --tree_2 --brsteps $i --crown_points_num 100 --step_len 0.08 --thickness 0.01 --main_thickness_decrease 0.9 --range 1.0 --kill_range 0.08 --show_crown_points
+    ./bin/yscene render outs/05_tree_2/tree_2.json --output out/05_tree_2_$i.jpg --samples 25 --resolution 720
+done
